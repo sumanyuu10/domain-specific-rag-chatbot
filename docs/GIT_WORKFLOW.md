@@ -53,9 +53,32 @@ Codex sign-in is not Git authentication.
 5. Present the results and suggest a phase-specific commit message.
 6. Commit and push only after approval; get approval before starting the next phase.
 
-For example, a future Phase 2 message could be
-`feat: add phase 2 PDF ingestion and persistent indexes`, but only once that work
-has actually been implemented and verified.
+## Phase 2 review and publication
+
+Phase 2 is implemented, tested, and approved by the user for commit and push.
+These commands document its publication workflow. Phase 3 and publication of
+future phases each need their own explicit approval.
+
+```bash
+cd /Users/sumanyu/Documents/Codex/2026-11-02/i-have-an-idea-for-a/outputs/domain_specific_rag
+git status --short
+git diff --check
+git diff
+# Phase 2 publication was explicitly approved:
+git add .env.example .streamlit/config.toml app.py pyproject.toml requirements-phase2.lock README.md PROJECT_PROGRESS.md src tests docs/GIT_WORKFLOW.md reports/PHASE2_REPORT.md
+git diff --cached --check
+git diff --cached --stat
+git diff --cached
+git commit -m "feat: add phase 2 PDF ingestion and persistent indexes"
+git remote -v
+git push origin main
+```
+
+Keep all PDFs, model weights, databases and raw test reports excluded. Do not use
+`git add -f`. The unchanged `requirements-phase1.lock` is retained as history;
+the current full dependency snapshot is `requirements-phase2.lock`. If Git needs
+an author identity, configure an appropriate repository-local or command-scoped
+identity; do not change global settings automatically.
 
 ## What stays local
 
