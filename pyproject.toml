@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "domain-specific-rag"
+version = "0.1.0"
+description = "Local research assistant: Phase 1 Codex integration verification"
+requires-python = ">=3.11"
+dependencies = [
+    "openai-codex==0.163.0",
+    "langchain-core==1.7.4",
+    "pydantic==2.14.2",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==9.2.0"]
+
+[project.scripts]
+rag-verify-codex = "src.verification:main"
+
+[tool.setuptools]
+package-dir = {"" = "."}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]
+namespaces = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
