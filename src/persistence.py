@@ -117,3 +117,21 @@ class Catalog:
                 args = (paper_id,)
             query += " ORDER BY c.paper_id,c.page_number,c.chunk_ordinal"
             return [ChunkRecord(**dict(row)) for row in db.execute(query, args)]
+
+    def chunk(self, chunk_id: str) -> ChunkRecord | None:
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT c.* FROM chunks c JOIN papers p ON c.paper_id=p.paper_id "
+                "WHERE c.chunk_id=? AND p.status='ready'", (chunk_id,),
+            ).fetchone()
+            return ChunkRecord(**dict(row)) if row else None
+
+    def corpus_version(self) -> str:
+        """Identity of the active corpus, for invalidating in-memory answers."""
+        import hashlib
+        with self.connection() as db:
+            rows = db.execute(
+                "SELECT paper_id,uploaded_at,chunk_count FROM papers WHERE status='ready' ORDER BY paper_id"
+            ).fetchall()
+            fingerprint = db.execute("SELECT value FROM metadata WHERE key='fingerprint'").fetchone()[0]
+        return hashlib.sha256(json.dumps([fingerprint, [tuple(row) for row in rows]]).encode()).hexdigest()

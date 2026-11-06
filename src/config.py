@@ -66,3 +66,17 @@ class IngestionSettings:
             "normalized": True, "distance": "cosine", "sparse_tokenizer": "technical-v1",
         }
         return hashlib.sha256(json.dumps(configuration, sort_keys=True).encode()).hexdigest()
+
+
+@dataclass(frozen=True)
+class RetrievalSettings:
+    candidates_per_method: int = 20
+    context_chunks: int = 8
+    rrf_constant: int = 60
+    max_question_chars: int = 2000
+    max_context_chars: int = 16000
+
+    def __post_init__(self):
+        if min(self.candidates_per_method, self.context_chunks, self.rrf_constant,
+               self.max_question_chars, self.max_context_chars) <= 0:
+            raise ValueError("Retrieval limits must be positive.")

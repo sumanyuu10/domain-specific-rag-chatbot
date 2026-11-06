@@ -1,18 +1,20 @@
 # Domain-Specific RAG Chatbot Using Large Language Models
 
-A local research assistant for AI and Computer Science papers. **Phase 2 is
-implemented: PDF upload, inspection, management, and persistent local indexes.**
-Question answering, hybrid retrieval/RRF, comparisons, citation validation, and
+A local research assistant for AI and Computer Science papers. **Phase 3 adds
+selected-paper hybrid retrieval, cited question answering, and a chat interface**
+to the existing PDF library and persistent indexes. Comparison synthesis and
 quality evaluation remain in their approved later phases.
 
 The approved architecture is unchanged. Generation remains **GPT-6.1 Sol
-(`gpt-6.1-sol`) through signed-in Codex and the official Python SDK**. Phase 2
-does not call Codex or send paper text to a hosted model.
+(`gpt-6.1-sol`) through signed-in Codex and the official Python SDK**. Uploading,
+indexing and retrieval stay local. Generation sends the question and bounded
+retrieved excerpts only when you permit it. There is no provider or API-key fallback.
 
 - [Project progress and approval gates](PROJECT_PROGRESS.md)
 - [Approved architecture reference](docs/ARCHITECTURE.md)
 - [Phase 1 verification evidence](reports/PHASE1_REPORT.md)
 - [Phase 2 implementation and validation](reports/PHASE2_REPORT.md)
+- [Phase 3 implementation and validation](reports/PHASE3_REPORT.md)
 - [Git workflow](docs/GIT_WORKFLOW.md)
 
 ## Run the application
@@ -25,9 +27,24 @@ From this repository directory, using its existing environment:
 
 Open the local URL shown in the terminal. Upload selectable-text English research
 PDFs, click **Index uploaded papers**, and inspect the extracted and cleaned page
-text. Select papers for future questions and comparisons. Confirm deletion to
+text. Select the papers you want to question. Confirm deletion to
 remove a paper's PDF, catalog pages/chunks, Chroma vectors, and BM25 entries.
 Close the app and restart with the same data folder to reopen the library.
+
+To ask a question:
+
+1. Select one or more indexed papers.
+2. Enter a question in the chat box. Hybrid search runs locally and shows the
+   retrieved passages; no Codex account is needed for this step.
+3. To generate an answer, enable the excerpt-sharing checkbox and click
+   **Generate cited answer**. The app uses only the approved signed-in Codex route.
+4. Inspect each claim's source IDs and the **Validated citations** panel for the
+   paper name, PDF page and canonical supporting passage.
+
+Paper selection or corpus changes clear in-memory chat/evidence and reset consent.
+The last six question contexts are kept in the current Streamlit session; answers
+are not stored in SQLite. Ambiguous follow-ups need a named paper/method or a recent
+user question. Earlier assistant answers are never used as documentary evidence.
 
 A library accepts **1–12 papers**, at most **25 MB and 200 pages per PDF**. Six to
 twelve is the intended research workload; a single paper is enough to start.
@@ -74,7 +91,9 @@ python3.12 -m venv .venv
 
 `pyproject.toml` pins direct dependencies. `requirements-phase2.lock` records the
 complete tested environment; `requirements-phase1.lock` is retained as the
-historical Phase 1 snapshot. Other platforms may require compatible wheels.
+historical Phase 1 snapshot. Phase 3 uses the same installed dependency versions;
+the existing LangSmith dependency is now explicitly pinned for disabling tracing.
+No new package or model was installed for Phase 3. Other platforms may require compatible wheels.
 The environment and public model cache are not committed. After source edits,
 repeat `pip install --no-deps .` with the environment's Python to refresh the
 installed verification CLI. Running from the checkout uses its current source.
@@ -114,10 +133,54 @@ and restored on restart; missing, corrupt, or stale snapshots are rebuilt from
 SQLite without re-embedding. Only load snapshots created by this application;
 Joblib is not a safe format for importing untrusted files.
 
-The existing LangChain/Codex gateway remains intact. Phase 3 will read these
-canonical chunks into LangChain retrieval chains, filter selected papers, fuse
-rankings with RRF, and validate citations. No question-answering or comparison
-logic has been implemented ahead of that phase.
+## How Phase 3 works
+
+```text
+Question + selected active papers
+  → bounded question processing (recent user question for simple follow-ups)
+  → selected-paper BM25 + local MiniLM query embedding / Chroma search
+  → equal-weight RRF, deduplication and bounded context
+  → canonical chunks as LangChain Documents
+  → local passage preview
+  → explicit excerpt-sharing consent
+  → LangChain prompt → isolated Codex gateway → structured claims/source IDs
+  → schema + canonical citation checks → answer/source display
+```
+
+Both retrieval methods filter before top-K ranking. Defaults are 20 candidates
+per method, rank constant 60, and at most eight context chunks/16,000 passage
+characters. Ranks start at one; a missing candidate contributes zero. RRF scores
+are ranking signals, never answer-confidence percentages. Same-page exact or
+subsumed passages are removed conservatively; similar passages with different
+experimental numbers are retained. Overlong dense questions are rejected before
+MiniLM can silently truncate them. BM25-only and vector-only modes are available
+programmatically for later evaluation; the chat uses hybrid search.
+
+LangChain runnable composition connects retrieval, prompt construction, the
+existing Codex generation boundary and source validation. LlamaIndex still owns
+ingestion/indexing; querying does not rebuild the corpus or create another store.
+BM25 refreshes its loaded snapshot after corpus changes. Citation validation uses
+only retrieved, selected, still-active canonical chunks. Model-written filenames,
+pages or quotations are never trusted. One schema/source-ID repair is permitted;
+an unresolved answer is withheld. SDK failures are not automatically retried with
+another model. Missing passages/evidence produce an explicit acknowledgment.
+
+The stricter `EvidenceGateway` reuses Phase 1 authentication, exact-model checks,
+turn handling and timeout/cancellation. Each request discovers configuration with
+no model turn, disables inherited MCP servers/plugins/skills, and then audits the
+effective configuration. The answer thread uses a restricted read-only profile
+limited to its temporary directory and platform defaults, with tool network access
+disabled. Hooks, notifications, web/shell/image tools, memory, subagents and
+telemetry export are disabled for that worker. Inherited instruction files are
+rejected. Service endpoint checks accept only the official OpenAI/ChatGPT hosts.
+User configuration and authentication are not edited or copied.
+
+LangChain tracing is also disabled in the application process around retrieval
+and generation, so inherited tracing settings cannot export questions/passages.
+The pinned SDK lacks high-level helpers for the needed inspection RPCs; a small
+adapter accesses its low-level official SDK client and checks the raw thread
+permission response. Incompatible/unverifiable settings disable generation while
+retaining local retrieval. Revalidate this boundary before changing SDK versions.
 
 ## Important files
 
@@ -125,17 +188,22 @@ logic has been implemented ahead of that phase.
 | --- | --- |
 | `app.py`, `.streamlit/config.toml` | Local Streamlit entry point, upload cap, telemetry preference |
 | `src/ui/documents.py` | Batch uploads, saved papers, selection, page preview, confirmed deletion |
-| `src/config.py` | Separate local-ingestion settings and unchanged fixed-model Codex settings |
-| `src/schemas.py` | Canonical paper, page, chunk, and error contracts |
+| `src/config.py` | Separate ingestion, retrieval and fixed-model Codex settings |
+| `src/schemas.py` | Canonical source records, structured claims, citations and answer results |
 | `src/ingestion/pdf.py`, `cleaning.py` | Page-aware PyMuPDF reader, layout warnings, conservative cleanup |
 | `src/ingestion/chunking.py` | Token-aware LlamaIndex chunks and stable IDs |
 | `src/embeddings.py` | Lazy CPU MiniLM via LlamaIndex's Sentence Transformers integration |
 | `src/ingestion/indexing.py` | The single LlamaIndex-to-Chroma writer |
 | `src/ingestion/pipeline.py` | Document lifecycle, duplicate detection, locking, and cleanup |
-| `src/persistence.py` | SQLite catalog, pages, chunks, and configuration checks |
-| `src/retrieval/bm25.py` | Technical-token BM25 construction and local snapshot persistence |
-| `src/generation/llm.py`, `src/verification.py` | Unchanged Phase 1 official Codex gateway and verifier |
-| `tests/` | Phase 1 regression, ingestion/index persistence, Streamlit, real-model opt-in checks |
+| `src/persistence.py` | SQLite catalog, canonical chunk lookup and active-corpus version |
+| `src/retrieval/bm25.py`, `vector.py`, `hybrid.py` | Sparse/dense filtering, RRF and context selection |
+| `src/retrieval/adapters.py` | Actual LangChain Documents and retrieval runnable |
+| `src/generation/llm.py`, `src/verification.py` | Preserved Phase 1 gateway/verifier; gateway adds isolation extension hooks |
+| `src/generation/isolation.py` | Mandatory worker configuration and thread-permission checks |
+| `src/generation/prompts.py`, `chains.py`, `citations.py` | Versioned prompts, orchestration, one repair and canonical citations |
+| `src/ui/chat.py` | Local question search, consent, answers and source panels |
+| `src/phase3_verification.py` | Explicit isolation/canary and optional live synthetic RAG verifier |
+| `tests/` | Existing regressions plus retrieval, answer, isolation, chat and verifier tests |
 
 Local runtime layout (all ignored):
 
@@ -152,17 +220,35 @@ data/
 ## Tests and verification
 
 ```bash
-.venv/bin/python -m pytest -q --junitxml=reports/phase2-tests.xml
-HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest tests/test_embedding_integration.py --run-embedding-integration -q
+.venv/bin/python -m pytest -q
+# Include both real MiniLM integration tests (first use may download public weights):
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase3-all-tests.xml
 .venv/bin/python -m pip check
 ```
 
 The standard suite uses synthetic PDFs and deterministic test embeddings while
-exercising real PyMuPDF, LlamaIndex, Chroma, BM25, SQLite, and Streamlit. It does
-not make LLM calls. The explicit integration test downloads/uses actual MiniLM
-weights on CPU and checks dimensions, normalization, token limits, shared source
-metadata, restart, duplicate handling, and deletion. Test results and remaining
-limits are recorded in the [Phase 2 report](reports/PHASE2_REPORT.md).
+exercising real PyMuPDF, LlamaIndex, Chroma, BM25, SQLite, Streamlit and LangChain.
+No pytest test makes an LLM request. The two real embedding tests are skipped
+unless opted in. After public model caching, the full suite can run with
+`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 3 report](reports/PHASE3_REPORT.md).
+
+Latest Phase 3 publication validation (November 6, 2026): **181 tests passed, none skipped**, including the
+original 112 Phase 1/2 tests. Separate live synthetic verification through the
+exact signed-in Codex model and the local HTTP smoke check also passed.
+
+Explicit worker verification (requires signed-in Codex and OS execution permission):
+
+```bash
+# Effective settings, temporary thread and synthetic filesystem checks; no model inference:
+.venv/bin/python -m src.phase3_verification --report reports/phase3-isolation.json
+# Optional synthetic injection, cited RAG answer and missing-evidence checks:
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m src.phase3_verification --live --report reports/phase3-live.json
+```
+
+`rag-verify-rag` is the installed equivalent. `--live` consumes Codex allowance:
+normally three turns, up to five if either RAG response requires its one repair.
+The filesystem verifier uses `/bin/cat` and has been tested on macOS, not Windows.
+It reads only generated control/canary files. JSON/XML reports remain local and ignored.
 
 Phase 1's verifier still works:
 
@@ -175,8 +261,8 @@ Phase 1's verifier still works:
 The default verifier checks account/model metadata without generation. The exact
 model is required: no fallback or API-key authentication. Phase 1 previously
 verified a live structured LangChain response through the official SDK and
-existing ChatGPT-managed Codex sign-in. Those results are historical; no new
-Codex inference is needed for Phase 2.
+existing ChatGPT-managed Codex sign-in. Phase 3 separately verifies the stricter
+evidence worker and synthetic RAG workflow.
 
 ## Limits and costs
 
@@ -185,30 +271,35 @@ Codex inference is needed for Phase 2.
   page labels. Scans need OCR and are rejected when there is no usable text;
   sparse/blank pages remain visible with warnings. Figures, equations, complex
   tables, and layout-dependent meaning are not reliably interpreted.
-- Source metadata is preserved, but citation validation and hallucination or
-  retrieval-quality measurement belong to later phases. No accuracy improvement
-  is claimed from these ingestion tests.
+- Source IDs, selected papers, canonical passages and PDF pages are validated.
+  This establishes traceability, not semantic support for every claim. Retrieval
+  quality, faithfulness and hallucination measurement remain Phase 6; no accuracy
+  improvement or general injection immunity is claimed from synthetic checks.
 - This is a single-user local app. Document status recovery handles basic partial
   operations; comprehensive corruption/recovery and UI refinement remain Phase 5.
   Deletion removes application data logically, not forensic traces or backups.
 - No hosted model fee is incurred by Phase 2. Local tools/model downloads use
   disk, CPU, and internet bandwidth. PyMuPDF's existing AGPL/commercial licensing
   decision remains relevant before distribution; no license choice is changed.
-- Before real excerpts enter Codex in Phase 3, review inherited MCP/skill/hook
-  configuration and finish the evidence-isolation gate. Read-only execution alone
-  is insufficient. SDK runtime startup can need OS execution permission in the
-  desktop sandbox. Account entitlement and quotas can change.
+- Phase 3 answer generation uses the account's Codex allowance, including any
+  explicit repair. No API credits are assumed or purchased. SDK runtime startup
+  can need OS execution permission in the desktop sandbox. Account entitlement,
+  quotas and managed restrictions can change; failed isolation checks disable
+  generation. The live tests used generated evidence only, not private papers.
+- Chat history is session-only and cleared when source scope changes. Ambiguous
+  follow-ups use a simple bounded rule. Broad PDF quality, adversarial coverage,
+  manual browser file-upload transport and other operating systems remain untested.
 
 ## Git workflow and stop point
 
-Phase 1 has been published to
+Phases 1 and 2 have been published to
 [sumanyuu10/domain-specific-rag-chatbot](https://github.com/sumanyuu10/domain-specific-rag-chatbot).
-Phase 2 is complete, tested, reviewed, and approved for publication. Git history
-records the phase commits. Phase 3 implementation requires separate approval.
-Phase 2 commit message:
+Phase 3 is complete, tested, reviewed and approved for publication on November 6,
+2026. Git history records the phase commits. Phase 4 has not started and requires
+separate approval. Phase 3 commit message:
 
 ```text
-feat: add phase 2 PDF ingestion and persistent indexes
+feat: add phase 3 hybrid retrieval and cited research chat
 ```
 
 `.gitignore` excludes `.env` variants, credentials, PDFs/private documents, local
@@ -216,7 +307,7 @@ databases/vectors/models, caches, environments, build output, and raw reports.
 Only `.env.example`, source, tests, and curated documentation are publishable.
 Publication follows the [Git workflow](docs/GIT_WORKFLOW.md); future phase commits
 and pushes require their own approval.
-**Stop after Phase 2; Phase 3 requires explicit approval.**
+**Stop after Phase 3; Phase 4 and publication of future phases require explicit approval.**
 
 ## Implementation references
 
@@ -226,3 +317,5 @@ and pushes require their own approval.
 - [PyMuPDF extraction](https://pymupdf.readthedocs.io/en/latest/recipes-text.html)
 - [Streamlit upload widget](https://docs.streamlit.io/develop/api-reference/widgets/st.file_uploader)
 - [Codex SDK](https://learn.chatgpt.com/docs/codex-sdk)
+- [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+- [App-server configuration and thread interfaces](https://learn.chatgpt.com/docs/app-server)

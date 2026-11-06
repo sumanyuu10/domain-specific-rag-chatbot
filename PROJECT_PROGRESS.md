@@ -1,159 +1,176 @@
 # Project progress
 
-Last updated: November 3, 2026.
+Last updated: November 6, 2026.
 
 ## Current phase
 
-**Phase 2 — PDF ingestion, document management, and persistent local indexes.**
-Implementation and automated validation are complete. The user reviewed and
-approved Phase 2 and authorized its commit and push on November 3, 2026.
-Git history records publication. **Do not begin Phase 3 without approval.**
+**Phase 3 — selected-paper hybrid retrieval, cited answers and chat.**
+Implementation and validation are complete. The user reviewed and approved Phase 3
+and authorized its commit and push on November 6, 2026. Git history records
+publication. Phase 4 requires separate explicit approval and has not started.
 
 ## Completed phases
 
 ### Phase 1 — published
 
-- Isolated Python environment and exact tested dependency pins.
-- Official Codex Python SDK with the existing ChatGPT-managed Codex sign-in and
-  exact `gpt-6.1-sol` model, including a successful live synthetic check.
-- Reusable LangChain runnable gateway, structured output, account/model checks,
-  timeout/cancellation, temporary runtime cleanup, and safe failure messages.
-- 78 regression tests and repository hygiene/documentation.
-- Published commit: `063b8b6` (`feat: complete phase 1 environment and Codex verification`).
+- Official Codex Python SDK, existing ChatGPT-managed sign-in and exact
+  `gpt-6.1-sol` model verified with synthetic inference.
+- LangChain runnable gateway, structured output, account/model checks,
+  timeout/cancellation, temporary runtime cleanup and safe error handling.
+- 78 offline gateway and repository-hygiene tests.
+- Commit `063b8b6`: `feat: complete phase 1 environment and Codex verification`.
+- [Historical implementation report](reports/PHASE1_REPORT.md).
 
-The gateway, verifier, Phase 1 tests, and historical dependency lock remain intact.
-See [the Phase 1 report](reports/PHASE1_REPORT.md).
+### Phase 2 — published
 
-### Phase 2 — completed and approved
+- Streamlit PDF upload/management/selection, original and cleaned page previews,
+  warnings and confirmed deletion.
+- PyMuPDF page reader, LlamaIndex token-aware chunks, actual local MiniLM
+  embeddings and persistent Chroma/BM25 indexes over canonical SQLite records.
+- Up to 12 papers, 25 MB/200-page PDF limits, duplicate detection, restart reuse,
+  fingerprint checks, locking and basic interrupted-operation cleanup.
+- 112 tests passed at publication, including the real MiniLM integration check.
+- Commit `cffa5e6`: `feat: add phase 2 PDF ingestion and persistent indexes`.
+- [Historical implementation report](reports/PHASE2_REPORT.md).
 
-- Streamlit local web app: multiple PDF uploads, saved-paper library, paper
-  selection, original/cleaned page preview, warnings, and confirmed deletion.
-- Up to 12 papers; 25 MB and 200-page limits per PDF; duplicate bytes skipped
-  without parsing or re-embedding. No minimum batch size.
-- PyMuPDF reader compatible with LlamaIndex's document-reader contract, preserving
-  PDF page positions, paper identity, filename, title, and extraction diagnostics.
-- Conservative cleaning and line-geometry reading-order heuristic for columns.
-- LlamaIndex token-aware chunking: 220 MiniLM tokens, 40 overlap; final input-size
-  validation with special tokens prevents accepted truncated embeddings.
-- Actual local CPU Sentence Transformers MiniLM embeddings through LlamaIndex,
-  pinned model revision, normalized 384-dimensional vectors, cosine Chroma index.
-- One canonical SQLite catalog with chunk IDs shared by Chroma and rank-bm25.
-  BM25 snapshots restore or rebuild from canonical records without re-embedding.
-- Local persistence, lock-serialized lifecycle operations, processing/deleting
-  states, failed-ingestion cleanup, interrupted-operation cleanup on reopening,
-  and full logical deletion of each paper's stored application data.
-- Fingerprint rejection of incompatible settings with preservation of existing data.
-- Dependency pins, fresh-install/run instructions, and a curated Phase 2 report.
+### Phase 3 — completed and approved
 
-Latest validation: **112 tests passed, none skipped**, including actual MiniLM
-with `HF_HUB_OFFLINE=1` after its initial public download. This includes all 78
-Phase 1 tests, 29 PDF/index/lifecycle tests, four Streamlit tests, and one actual
-embedding integration test. Dependency consistency and the local Streamlit
-HTTP smoke test passed. See [the Phase 2 report](reports/PHASE2_REPORT.md).
+- Selected-paper BM25 and Chroma searches filter eligible documents before top-K.
+  Query vectors use the same local MiniLM service; unchanged PDFs are not reindexed.
+- Equal-weight reciprocal rank fusion: 20 candidates per method, constant 60,
+  one-based ranks, stable tie handling and canonical chunk deduplication.
+- Context limited to eight passages and 16,000 passage characters; remove exact
+  or subsumed same-page text while retaining distinct experimental results.
+- LangChain retrieval runnable returns actual LangChain Documents alongside
+  canonical provenance; a runnable answer chain builds the prompt and invokes
+  the existing official Codex boundary.
+- Bounded questions and simple recent-user-question handling for follow-ups.
+  Earlier assistant answers are never documentary evidence. Overlong dense
+  questions are rejected before MiniLM truncation.
+- Structured claims require retrieved source IDs. Canonical citation validation
+  checks selected/active papers, exact passages, metadata and corpus version.
+  One bounded format/source repair is allowed; unresolved answers are withheld.
+- Missing evidence is acknowledged; unavailable credentials/runtime/model access
+  or failed isolation disables generation while local retrieval stays available.
+- Streamlit chat previews passages locally. An explicit consent checkbox and
+  Generate cited answer action precede remote inference. Selection/corpus changes
+  clear in-memory answers/evidence and reset consent. History is session-only.
+- A stricter EvidenceGateway reuses Phase 1 auth/model/turn behavior through small
+  extension hooks. It discovers and disables inherited capabilities, audits
+  effective configuration, checks actual thread permissions/instruction sources
+  and rejects active MCP capabilities before sending evidence.
+- Answer workers use a temporary restricted read-only profile with tool network
+  access disabled. MCP/skills/plugins/hooks, notifications, web/shell/image tools,
+  memory, subagents and telemetry export are disabled for those workers.
+  Official service hosts are checked; user configuration/authentication are untouched.
+- LangChain tracing is disabled around application retrieval and generation to
+  prevent inherited tracing settings from exporting private evidence.
+- Added explicit metadata/isolation and optional live synthetic RAG verification.
 
-Publication revalidation: all 112 tests passed again with no failures or skipped
-tests; dependency consistency passed. The Phase 1 gateway, verifier, regression
-tests and dependency lock are unchanged from the published Phase 1 commit.
-No new live Codex inference or manual browser upload test was performed for
-publication. The existing manual-test limitations below remain explicit.
-
-No LLM inference or paper transmission occurred in Phase 2. The user has approved
-publication of Phase 2 only; Phase 3 implementation has not started.
+**Publication revalidation on November 6: 181 tests passed, none skipped, in
+16.35 seconds.** All original
+112 Phase 1/2 tests still pass. Live signed-in `gpt-6.1-sol` verification passed
+synthetic filesystem isolation, document-instruction attack, a real local-MiniLM
+retrieval/cited answer and a missing-evidence question. The local Streamlit HTTP
+smoke check and dependency consistency passed. See [the Phase 3 report](reports/PHASE3_REPORT.md).
 
 ## Pending phases
 
-| Phase | Approved work | Status |
+| Phase | Approved roadmap scope | Status |
 | --- | --- | --- |
-| 3 | Selected-paper sparse/dense retrieval, RRF, grounded answers, citation validation | Awaiting approval; resolve Codex evidence-isolation gate first |
-| 4 | Paper-balanced comparison, evidence cards, agreement/disagreement synthesis | Pending |
-| 5 | UI/source refinement, comprehensive recovery and failure handling | Pending |
-| 6 | Labeled dataset, three-mode retrieval evaluation, faithfulness/hallucination review, optional Ragas, final guide/demo | Pending |
+| 4 | Per-paper/category retrieval budgets, evidence cards, comparison tables and agreement/disagreement synthesis | Awaiting explicit approval; not started |
+| 5 | UI/source refinement, comprehensive corruption/recovery and failure handling | Pending |
+| 6 | Labeled dataset, three-mode retrieval evaluation, claim faithfulness/hallucination review, optional Ragas and final demo/guide | Pending |
 
-The approved architecture remains in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-Basic ingestion consistency is implemented now so Phase 2 can safely persist and
-delete papers; comprehensive corruption/recovery testing remains Phase 5.
+The approved architecture reference and diagram remain unchanged in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Phase 3 adds question answering, not
+Phase 4's balanced comparison engine or Phase 6's evaluation results.
 
-## Implemented functionality and components
+## Important components
 
-| Component | Files | Purpose |
-| --- | --- | --- |
-| Frontend | `app.py`, `src/ui/documents.py`, `.streamlit/config.toml` | Local uploads, preview, paper selection and deletion |
-| Source contract | `src/schemas.py`, `src/config.py` | Canonical records, errors, fixed defaults and pipeline fingerprint |
-| PDF processing | `src/ingestion/pdf.py`, `cleaning.py` | Original/cleaned page text and extraction warnings |
-| Chunking | `src/ingestion/chunking.py` | LlamaIndex token-aware, page-scoped deterministic chunks |
-| Embedding/indexing | `src/embeddings.py`, `src/ingestion/indexing.py` | One MiniLM service and one LlamaIndex Chroma writer |
-| Lifecycle/catalog | `src/ingestion/pipeline.py`, `src/persistence.py` | Persistence, caps, duplicates, locking and cleanup |
-| Sparse index | `src/retrieval/bm25.py` | Actual rank-bm25 snapshot over canonical chunks |
-| Existing generation | `src/generation/llm.py`, `src/verification.py` | Unchanged official SDK gateway and LangChain adapter |
-| Verification | `tests/`, `reports/PHASE2_REPORT.md` | Automated results and explicit limits |
+| Files | Purpose |
+| --- | --- |
+| `src/ingestion/`, `src/embeddings.py` | Existing LlamaIndex/PyMuPDF/local embedding pipeline, unchanged |
+| `src/persistence.py`, `src/schemas.py`, `src/config.py` | Canonical source lookup, corpus version, retrieval/answer contracts and limits |
+| `src/retrieval/bm25.py`, `vector.py`, `hybrid.py` | Sparse/dense search, filtering, RRF and context selection |
+| `src/retrieval/adapters.py` | LangChain retrieval adapter and Documents |
+| `src/generation/llm.py`, `isolation.py` | Reused SDK gateway plus strict evidence-worker checks |
+| `src/generation/prompts.py`, `chains.py`, `citations.py` | Versioned prompts, orchestration, repair and source validation |
+| `src/ui/documents.py`, `src/ui/chat.py` | Existing document library plus local search, consent, answers and citations |
+| `src/phase3_verification.py` | Explicit synthetic SDK/isolation/RAG verification CLI |
+| `tests/`, `reports/PHASE3_REPORT.md` | Regression evidence and current limitations |
 
-## Important technical decisions
+## Technical decisions
 
 - Preserve Python, Streamlit, LangChain, LlamaIndex, ChromaDB, Sentence Transformers,
-  BM25 and eventual RRF. No providers, frameworks, microservices or authentication
-  systems have been substituted or added.
-- LlamaIndex owns ingestion and vector writing; LangChain owns the existing LLM
-  boundary and future retrieval/answer chains. Canonical IDs avoid duplicate corpora.
-- Use `sentence-transformers/all-MiniLM-L6-v2` at revision
-  `1110a243fdf4706b3f48f1d95db1a4f5529b4d41`; embeddings run on CPU.
-- Keep pages within their original PDF positions. Do not merge across pages.
-  Metadata is preserved separately and excluded from embedding text.
-- Persist PDFs, pages, chunks, Chroma and BM25 locally. The only Phase 2 network
-  requirement is the first public embedding-model download; no hosted inference.
-- Generation remains only `gpt-6.1-sol` through signed-in Codex and the official
-  Python SDK. Never replace the model or authentication without approval.
-- Python 3.11+ is the target; Python 3.12.14/macOS Apple Silicon was tested.
-  Use a normal local package install. Phase 1 pins were preserved; Phase 2 adds
-  tested direct/transitive pins in its own lock file.
-- Changing the embedding/chunking fingerprint requires the original configuration
-  or a new empty data folder; automatic reindexing is not implemented.
-- Keep each phase separate; review/test before any approved commit and push.
+  BM25 and RRF; one canonical corpus and one vector store.
+- LlamaIndex owns ingestion/indexing; LangChain owns retrieval/generation
+  composition. No second parser, embedding model or provider was introduced.
+- Keep the MiniLM revision, ingestion fingerprint and saved Phase 2 data compatible.
+  Phase 3 uses the same installed dependency versions in `requirements-phase2.lock`.
+  The existing LangSmith dependency is explicitly pinned for tracing controls.
+- Generation remains only `gpt-6.1-sol`, signed-in Codex, official Python SDK.
+  Never substitute a model or authentication method without approval.
+- The SDK is pinned to `openai-codex==0.163.0`. Necessary config/thread RPCs use
+  the official SDK's low-level client through one compatibility adapter; unsupported
+  versions or unverified permissions fail closed. Revalidate before SDK changes.
+- PDFs, vectors, snapshots and canonical passages remain local. Only permitted
+  questions, bounded retrieved passages and source labels are sent for generation.
+- Gate checks and synthetic canaries establish concrete tested restrictions, not
+  universal immunity to document attacks or hallucinations.
+- Work on one approved phase; obtain separate approval for publication and the
+  next phase. Phase 3 publication is approved; future phases require their own approval.
 
-## Known issues and limits
+## Known issues and limitations
 
-- PDF reading order is heuristic. Scans, figures, equations and complex tables
-  are not interpreted reliably. Previews show actual indexed text. Tests use
-  synthetic papers, not a benchmark proving real-paper extraction accuracy.
-- Phase 2 preserves citation metadata but does not validate answers/citations,
-  implement retrieval/RRF or measure hallucinations and retrieval quality.
-- The initial public model download hit a desktop sandbox permission error in
-  Hugging Face's default Xet cache. Setting `HF_XET_CACHE` to the ignored local
-  model folder resolved it; see README. Cached real-model processing passed offline.
-- Five upstream PyMuPDF/SWIG deprecation warnings remain; no test failures remain.
-- Before Phase 3 sends real excerpts to Codex, inspect inherited MCP/skill/hook
-  configuration and complete evidence-isolation tests. Phase 1 synthetic success
-  and read-only execution do not establish complete isolation.
-- SDK runtime startup may require OS execution permission. Codex account access
-  and usage allowance can change; no new entitlement claim is made by Phase 2.
-- Joblib snapshots are trusted local application data; never import untrusted ones.
-  Deletion is logical application deletion, not forensic erasure or backup removal.
-- No full manual browser upload transport test was run; Streamlit AppTest exercised
-  the actual upload action with an UploadedFile-compatible synthetic object, and
-  the real local server's health/HTML endpoints were checked separately.
-- `.gitignore` covers private documents, credentials, data/index/model files,
-  environments and generated output. It cannot detect secrets pasted into source.
+- Five upstream PyMuPDF/SWIG deprecation warnings remain; no tests are failing.
+- PDF layout remains heuristic. Scans/OCR, figure interpretation, equations and
+  complex tables are unsupported. Real-paper benchmark quality was not measured.
+- Structural citations prove traceability, not whether every claim is supported.
+  Retrieval accuracy, faithfulness and hallucination metrics remain Phase 6.
+- Ordinary hybrid questions can concentrate on one selected paper; per-paper
+  balanced comparison evidence collection remains Phase 4.
+- Follow-up handling uses a bounded rule; ambiguous references may need a named
+  paper/method. Chat history is not durable across app restarts.
+- Basic lifecycle recovery is implemented; comprehensive corruption recovery is
+  Phase 5. Joblib snapshots must be trusted local application data. Deletion is
+  logical, not forensic erasure.
+- Live tests used generated evidence only. Full manual browser file-upload
+  transport and broad adversarial/representative-paper review were not performed.
+- SDK runtime startup and local HTTP checks need OS execution permission in the
+  desktop sandbox. Public MiniLM weights must be cached for offline processing.
+- The explicit filesystem verifier uses `/bin/cat`; macOS was tested, other OSes
+  were not. Account entitlement, usage limits and managed policies may change.
+- `.gitignore` excludes credentials, documents, local runtime/index/model data and
+  raw reports; it cannot identify arbitrary secrets pasted into source.
 
-## Next development steps
+## Next steps and stop point
 
-1. Review the Phase 2 commit and validation report in GitHub after publication.
-2. Obtain explicit approval for Phase 3.
-3. At Phase 3 entry, complete the evidence-isolation gate before sending any real
-   excerpts; implement only its approved filtered hybrid retrieval/answer scope.
+1. Review the Phase 3 commit and its validation report in GitHub after publication.
+2. Obtain explicit approval before beginning Phase 4.
 
-Phase 3 will extend `src/retrieval/bm25.py`, add `vector.py`, `hybrid.py` and
-`adapters.py`, and add `src/generation/prompts.py`, `chains.py` and `citations.py`.
-`src/ui/chat.py` will connect selected papers to the answer chain; shared schemas,
-canonical chunk lookup and the application entry point will be extended as needed.
-The existing Codex gateway will be reused, subject to its evidence-isolation gate.
-No Phase 3 source files have been created.
+Phase 4 planning only: collect evidence independently for each selected paper and
+each comparison category (methodology, datasets, results, conclusions, limitations).
+Reuse the existing BM25/vector/RRF services with per-paper budgets. Add structured
+evidence cards and comparison synthesis in `src/generation/comparison.py`, and
+comparison controls/tables in `src/ui/comparison.py`. Extend shared schemas,
+configuration, canonical citation validation and persistence for validated card
+caching/invalidation as needed; no Phase 4 source files have been created.
 
-Expected Phase 3 checks cover selected-paper filtering, deterministic RRF,
-canonical metadata, bounded context, missing-evidence answers, invalid citations,
-untrusted document instructions, gateway failures and chat/source display.
-Per-paper comparison synthesis remains Phase 4; measured retrieval and
-hallucination evaluation remains Phase 6.
+The approved defaults begin with eight candidates per method/category and up to
+two retained passages per category. Each paper must have evidence or an explicit
+gap. Validate cards against original chunks before a LangChain synthesis request;
+trace every comparison cell back to those chunks. Cache keys must include paper,
+question/category, model and prompt versions, and invalidate affected cards/results
+after deletion or source changes. Use the existing isolated signed-in Codex gateway.
+
+Expected Phase 4 tests cover an intentionally dominant paper, missing categories,
+agreements/disagreements with sources from the relevant papers, incomparable
+experimental settings, invalid card/cell citations, cache invalidation, SDK failures,
+and comparison UI. Retain the existing regression suite and use synthetic multi-paper
+fixtures plus an explicit live comparison smoke check when Phase 4 is approved.
 
 Recommended commit message:
-`feat: add phase 2 PDF ingestion and persistent indexes`
+`feat: add phase 3 hybrid retrieval and cited research chat`
 
-**Stop here: Phase 2 complete and approved for publication; Phase 3 awaits approval.**
+**Stop here: Phase 3 complete and approved for publication; Phase 4 awaits approval.**

@@ -80,6 +80,27 @@ the current full dependency snapshot is `requirements-phase2.lock`. If Git needs
 an author identity, configure an appropriate repository-local or command-scoped
 identity; do not change global settings automatically.
 
+## Phase 3 review boundary
+
+Phase 3 implementation is complete and the user approved its commit and push on
+November 6, 2026. Inspect the exact staged source/test/doc diff, exclusions and
+current remote history before publication. That approval applies only to Phase 3;
+Phase 4 implementation and publication of future phases need their own approval.
+
+The full check includes both actual embedding tests:
+
+```bash
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q
+.venv/bin/python -m pip check
+git status --short
+git diff --check
+```
+
+Approved Phase 3 commit message:
+`feat: add phase 3 hybrid retrieval and cited research chat`.
+See `reports/PHASE3_REPORT.md` for the file inventory, live synthetic verification
+and limitations. Phase 4 requires separate explicit approval.
+
 ## What stays local
 
 `.gitignore` excludes environment variants, credentials, uploaded/private

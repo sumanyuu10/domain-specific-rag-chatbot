@@ -1,4 +1,4 @@
-"""Phase 2 document management; question answering belongs to Phase 3."""
+"""Document management and the Phase 3 chat entry point."""
 import logging
 
 from filelock import Timeout
@@ -7,6 +7,7 @@ import streamlit as st
 from src.config import IngestionSettings
 from src.ingestion.pipeline import PaperLibrary
 from src.schemas import IngestionError
+from src.ui.chat import render_chat
 
 
 @st.cache_resource(show_spinner=False)
@@ -17,8 +18,8 @@ def get_library(settings: IngestionSettings) -> PaperLibrary:
 
 def render_library(library: PaperLibrary):
     st.caption(
-        "Phase 2 · Local PDF library and indexes. Question answering and comparisons "
-        "will be added in later phases. No document text is sent to Codex here."
+        "Local PDF library and hybrid research chat. Uploading and indexing stay local. "
+        "Answer generation sends only the question and retrieved passages when you permit it below."
     )
     st.write(
         "Upload up to 12 selectable-text research PDFs, at most 25 MB and 200 pages "
@@ -59,7 +60,7 @@ def render_library(library: PaperLibrary):
         "Pages": paper.page_count, "Chunks": paper.chunk_count,
     } for paper in papers], hide_index=True, width="stretch")
     st.multiselect(
-        "Select papers for future questions and comparisons", options=list(by_id),
+        "Select papers for questions", options=list(by_id),
         format_func=lambda item: by_id[item].filename, key="selected_papers",
     )
     selected = st.selectbox(
@@ -94,7 +95,10 @@ def main():
     st.set_page_config(page_title="Research paper library", layout="wide")
     st.title("AI & Computer Science Research Assistant")
     try:
-        render_library(get_library(IngestionSettings.from_environment()))
+        library = get_library(IngestionSettings.from_environment())
+        render_library(library)
+        st.divider()
+        render_chat(library)
     except IngestionError as error:
         st.error(str(error))
     except Timeout:
