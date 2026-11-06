@@ -85,7 +85,7 @@ identity; do not change global settings automatically.
 Phase 3 implementation is complete and the user approved its commit and push on
 November 6, 2026. Inspect the exact staged source/test/doc diff, exclusions and
 current remote history before publication. That approval applies only to Phase 3;
-Phase 4 implementation and publication of future phases need their own approval.
+Phase 4 publication and implementation of future phases need their own approval.
 
 The full check includes both actual embedding tests:
 
@@ -99,7 +99,27 @@ git diff --check
 Approved Phase 3 commit message:
 `feat: add phase 3 hybrid retrieval and cited research chat`.
 See `reports/PHASE3_REPORT.md` for the file inventory, live synthetic verification
-and limitations. Phase 4 requires separate explicit approval.
+and limitations. Phase 4 publication requires separate explicit approval.
+
+## Phase 4 review boundary
+
+Phase 4 is implemented, tested and reviewed. The user approved commit and push on
+November 6, 2026. Recheck tests, `reports/PHASE4_REPORT.md`, the exact source/test/doc
+diff, exclusions and fetched remote history before staging only Phase 4 files.
+Use a normal push; stop on failures, conflicts or unexpected remote changes.
+Phase 5 implementation and publication need their own explicit approvals.
+
+```bash
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q
+.venv/bin/python -m pip check
+git status --short
+git diff --check
+```
+
+Approved Phase 4 commit message:
+`feat: add phase 4 cited research paper comparisons`.
+Validated card caches reside inside the ignored SQLite catalog; raw Phase 4
+verification reports remain ignored. Never stage those generated/private files.
 
 ## What stays local
 

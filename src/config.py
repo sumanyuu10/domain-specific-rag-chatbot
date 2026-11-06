@@ -80,3 +80,20 @@ class RetrievalSettings:
         if min(self.candidates_per_method, self.context_chunks, self.rrf_constant,
                self.max_question_chars, self.max_context_chars) <= 0:
             raise ValueError("Retrieval limits must be positive.")
+
+
+@dataclass(frozen=True)
+class ComparisonSettings:
+    candidates_per_method: int = 8
+    passages_per_category: int = 2
+    max_paper_context_chars: int = 16000
+    max_synthesis_chars: int = 180000
+    max_focus_chars: int = 1000
+    rrf_constant: int = 60
+    cached_cards_per_paper: int = 16
+
+    def __post_init__(self):
+        if min(self.candidates_per_method, self.passages_per_category,
+               self.max_paper_context_chars, self.max_synthesis_chars,
+               self.max_focus_chars, self.rrf_constant, self.cached_cards_per_paper) <= 0:
+            raise ValueError("Comparison limits must be positive.")

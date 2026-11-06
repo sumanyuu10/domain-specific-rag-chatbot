@@ -1,9 +1,9 @@
 # Domain-Specific RAG Chatbot Using Large Language Models
 
-A local research assistant for AI and Computer Science papers. **Phase 3 adds
-selected-paper hybrid retrieval, cited question answering, and a chat interface**
-to the existing PDF library and persistent indexes. Comparison synthesis and
-quality evaluation remain in their approved later phases.
+A local research assistant for AI and Computer Science papers. **Phase 4 adds
+paper-balanced comparisons, validated evidence cards and comparison tables** to
+the existing PDF library, hybrid retrieval and cited chat. Comprehensive recovery
+and quality evaluation remain in their approved later phases.
 
 The approved architecture is unchanged. Generation remains **GPT-6.1 Sol
 (`gpt-6.1-sol`) through signed-in Codex and the official Python SDK**. Uploading,
@@ -15,6 +15,7 @@ retrieved excerpts only when you permit it. There is no provider or API-key fall
 - [Phase 1 verification evidence](reports/PHASE1_REPORT.md)
 - [Phase 2 implementation and validation](reports/PHASE2_REPORT.md)
 - [Phase 3 implementation and validation](reports/PHASE3_REPORT.md)
+- [Phase 4 implementation and validation](reports/PHASE4_REPORT.md)
 - [Git workflow](docs/GIT_WORKFLOW.md)
 
 ## Run the application
@@ -45,6 +46,25 @@ Paper selection or corpus changes clear in-memory chat/evidence and reset consen
 The last six question contexts are kept in the current Streamlit session; answers
 are not stored in SQLite. Ambiguous follow-ups need a named paper/method or a recent
 user question. Earlier assistant answers are never used as documentary evidence.
+
+To compare papers:
+
+1. Select **2–12 indexed papers** and scroll to **Compare selected papers**.
+2. Optionally enter a comparison focus and select categories: methodology,
+   datasets, results, conclusions and limitations.
+3. Click **Collect comparison evidence**. This searches each paper/category
+   independently and previews the passages locally; it makes no model request.
+4. Enable the comparison excerpt-sharing checkbox, then **Generate comparison**.
+   The app validates one evidence card per uncached paper before synthesis.
+5. Inspect the table, supported agreements/disagreements, reported experimental
+   conditions, and original **Comparison source passages**.
+
+Missing categories are labeled as gaps in the retrieved passages. Failed model
+requests are shown as failures, not missing paper content. **Retry failed comparison
+requests** reuses valid cached cards. Changing the focus, categories, selection
+or corpus clears the preview/result and resets comparison consent. Restart the
+app after updating to Phase 4 so its additive SQLite cache table is created;
+existing PDFs and vector indexes do not need rebuilding.
 
 A library accepts **1–12 papers**, at most **25 MB and 200 pages per PDF**. Six to
 twelve is the intended research workload; a single paper is enough to start.
@@ -91,9 +111,9 @@ python3.12 -m venv .venv
 
 `pyproject.toml` pins direct dependencies. `requirements-phase2.lock` records the
 complete tested environment; `requirements-phase1.lock` is retained as the
-historical Phase 1 snapshot. Phase 3 uses the same installed dependency versions;
+historical Phase 1 snapshot. Phases 3 and 4 use the same installed dependency versions;
 the existing LangSmith dependency is now explicitly pinned for disabling tracing.
-No new package or model was installed for Phase 3. Other platforms may require compatible wheels.
+No new third-party package or model was installed for Phases 3 or 4. Other platforms may require compatible wheels.
 The environment and public model cache are not committed. After source edits,
 repeat `pip install --no-deps .` with the environment's Python to refresh the
 installed verification CLI. Running from the checkout uses its current source.
@@ -182,6 +202,52 @@ adapter accesses its low-level official SDK client and checks the raw thread
 permission response. Incompatible/unverifiable settings disable generation while
 retaining local retrieval. Revalidate this boundary before changing SDK versions.
 
+## How Phase 4 works
+
+```mermaid
+flowchart TD
+    A[Selected papers and comparison categories] --> B[Separate BM25 and vector retrieval for each paper/category]
+    B --> C[Local passage preview and sharing consent]
+    C --> D[Validated cached card or isolated Codex card request]
+    D --> E[Validate category coverage and original source IDs]
+    E --> F[LangChain comparison synthesis]
+    F --> G[Validate table coverage, citations and reported experimental conditions]
+    G --> H[Comparison table, relationships and original PDF passages]
+```
+
+Each paper/category receives eight sparse and eight dense candidates. The existing
+RRF implementation keeps up to two passages per category, with a total per-paper
+passage budget of 16,000 characters. One paper cannot consume another's budget.
+Source IDs are canonical chunk IDs, stable across paper ordering and cached cards.
+
+One structured card request per paper extracts cited findings. Results can include
+reported task, dataset, split, metric, value and settings; absent fields remain
+unknown. A second chain selects validated card entries for every table cell and
+generates cited relationships. The app renders the selected entry text rather
+than accepting independently invented table facts. Every relationship must cite
+category evidence from each named paper. All source panels resolve to the original
+canonical passages, not an intermediate card.
+
+Result agreements/disagreements require complete matching reported task, dataset,
+split, metric and settings. Missing or mismatching fields produce **not directly
+comparable** assessments. Matching uses conservative case/whitespace normalization,
+not semantic equivalence or unit conversion; matching labels do not establish a
+fair scientific experiment. Different numbers or methods are not automatically
+contradictions. Source support still requires human/evaluation review.
+
+Validated cards are cached in the existing local SQLite catalog using paper version,
+focus, categories, model, card-prompt version, retrieval settings and retrieved
+source IDs. Cache reads are revalidated against current canonical records. Invalid
+card JSON is regenerated; deleting a paper cascades to its cards. Retention is
+bounded to 16 cards per paper. Comparison results remain session-only, and synthesis
+runs again even when all cards are cached.
+
+Each card/synthesis request has at most two attempts total: an initial request and
+one transient retry or schema/citation repair. Authentication, model or isolation
+failures stop further generation. A failed card withholds synthesis until all
+selected papers have validated cards; successful cards remain cached for retry.
+No new SDK worker, provider, embedding model or vector store is introduced.
+
 ## Important files
 
 | File | Purpose |
@@ -202,7 +268,12 @@ retaining local retrieval. Revalidate this boundary before changing SDK versions
 | `src/generation/isolation.py` | Mandatory worker configuration and thread-permission checks |
 | `src/generation/prompts.py`, `chains.py`, `citations.py` | Versioned prompts, orchestration, one repair and canonical citations |
 | `src/ui/chat.py` | Local question search, consent, answers and source panels |
+| `src/retrieval/comparison.py` | Per-paper/category budgets and comparison evidence snapshots |
+| `src/generation/comparison.py` | Card generation/cache reuse, bounded retries and synthesis |
+| `src/generation/comparison_validation.py` | Card/table/relationship provenance and experimental-context checks |
+| `src/ui/comparison.py` | Local preview, consent, comparison tables, failures and original sources |
 | `src/phase3_verification.py` | Explicit isolation/canary and optional live synthetic RAG verifier |
+| `src/phase4_verification.py` | Explicit synthetic multi-paper comparison and card-cache verifier |
 | `tests/` | Existing regressions plus retrieval, answer, isolation, chat and verifier tests |
 
 Local runtime layout (all ignored):
@@ -221,20 +292,21 @@ data/
 
 ```bash
 .venv/bin/python -m pytest -q
-# Include both real MiniLM integration tests (first use may download public weights):
-HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase3-all-tests.xml
+# Include all three real MiniLM integration tests (first use may download public weights):
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase4-all-tests.xml
 .venv/bin/python -m pip check
 ```
 
 The standard suite uses synthetic PDFs and deterministic test embeddings while
 exercising real PyMuPDF, LlamaIndex, Chroma, BM25, SQLite, Streamlit and LangChain.
-No pytest test makes an LLM request. The two real embedding tests are skipped
+No pytest test makes an LLM request. The three real embedding tests are skipped
 unless opted in. After public model caching, the full suite can run with
-`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 3 report](reports/PHASE3_REPORT.md).
+`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 4 report](reports/PHASE4_REPORT.md).
 
-Latest Phase 3 publication validation (November 6, 2026): **181 tests passed, none skipped**, including the
-original 112 Phase 1/2 tests. Separate live synthetic verification through the
-exact signed-in Codex model and the local HTTP smoke check also passed.
+Latest Phase 4 validation (November 6, 2026): **234 tests passed, none skipped**,
+including all 181 existing Phase 1/2/3 tests. Separate live synthetic comparison
+verification through the exact signed-in Codex model and the local HTTP smoke
+check also passed.
 
 Explicit worker verification (requires signed-in Codex and OS execution permission):
 
@@ -249,6 +321,19 @@ HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m src.phase3_verification 
 normally three turns, up to five if either RAG response requires its one repair.
 The filesystem verifier uses `/bin/cat` and has been tested on macOS, not Windows.
 It reads only generated control/canary files. JSON/XML reports remain local and ignored.
+
+Explicit Phase 4 verification:
+
+```bash
+# Existing isolation checks only; no model inference:
+.venv/bin/python -m src.phase4_verification --report reports/phase4-isolation.json
+# Generated two-paper comparison, agreements/disagreements, gaps and cached-card reuse:
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m src.phase4_verification --live --report reports/phase4-live.json
+```
+
+`rag-verify-comparison` is the installed equivalent. Its live check normally uses
+four model requests, up to eight with bounded retries/repairs. The recorded live
+run used four. It submits generated synthetic passages only.
 
 Phase 1's verifier still works:
 
@@ -286,20 +371,23 @@ evidence worker and synthetic RAG workflow.
   can need OS execution permission in the desktop sandbox. Account entitlement,
   quotas and managed restrictions can change; failed isolation checks disable
   generation. The live tests used generated evidence only, not private papers.
+- Phase 4 normally uses one card request per uncached paper plus one synthesis
+  request. Cached cards save their generation calls; final synthesis still uses
+  allowance. Larger comparisons can take longer. Reported-condition matching and
+  structural source validation do not replace scientific or faithfulness review.
 - Chat history is session-only and cleared when source scope changes. Ambiguous
   follow-ups use a simple bounded rule. Broad PDF quality, adversarial coverage,
   manual browser file-upload transport and other operating systems remain untested.
 
 ## Git workflow and stop point
 
-Phases 1 and 2 have been published to
+Phases 1, 2 and 3 have been published to
 [sumanyuu10/domain-specific-rag-chatbot](https://github.com/sumanyuu10/domain-specific-rag-chatbot).
-Phase 3 is complete, tested, reviewed and approved for publication on November 6,
-2026. Git history records the phase commits. Phase 4 has not started and requires
-separate approval. Phase 3 commit message:
+Phase 4 is completed, tested and reviewed. The user approved its commit and push
+on November 6, 2026. Phase 4 commit message:
 
 ```text
-feat: add phase 3 hybrid retrieval and cited research chat
+feat: add phase 4 cited research paper comparisons
 ```
 
 `.gitignore` excludes `.env` variants, credentials, PDFs/private documents, local
@@ -307,7 +395,9 @@ databases/vectors/models, caches, environments, build output, and raw reports.
 Only `.env.example`, source, tests, and curated documentation are publishable.
 Publication follows the [Git workflow](docs/GIT_WORKFLOW.md); future phase commits
 and pushes require their own approval.
-**Stop after Phase 3; Phase 4 and publication of future phases require explicit approval.**
+**Stop after the authorized Phase 4 publication. Phase 5 has not started and needs
+explicit approval.** Its scope is restart/deletion recovery, graceful service/storage
+failures, and source/UI refinement; see [the preparation plan](PROJECT_PROGRESS.md#phase-5-preparation--not-implemented).
 
 ## Implementation references
 

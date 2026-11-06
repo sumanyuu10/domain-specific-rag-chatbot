@@ -1,4 +1,4 @@
-"""Document management and the Phase 3 chat entry point."""
+"""Document management, research chat and comparison entry point."""
 import logging
 
 from filelock import Timeout
@@ -8,6 +8,7 @@ from src.config import IngestionSettings
 from src.ingestion.pipeline import PaperLibrary
 from src.schemas import IngestionError
 from src.ui.chat import render_chat
+from src.ui.comparison import render_comparison
 
 
 @st.cache_resource(show_spinner=False)
@@ -60,7 +61,7 @@ def render_library(library: PaperLibrary):
         "Pages": paper.page_count, "Chunks": paper.chunk_count,
     } for paper in papers], hide_index=True, width="stretch")
     st.multiselect(
-        "Select papers for questions", options=list(by_id),
+        "Select papers for questions and comparisons", options=list(by_id),
         format_func=lambda item: by_id[item].filename, key="selected_papers",
     )
     selected = st.selectbox(
@@ -99,6 +100,8 @@ def main():
         render_library(library)
         st.divider()
         render_chat(library)
+        st.divider()
+        render_comparison(library)
     except IngestionError as error:
         st.error(str(error))
     except Timeout:

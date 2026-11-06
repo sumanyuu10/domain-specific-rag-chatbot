@@ -48,7 +48,7 @@ def render_chat(library, *, assistant_factory=None):
         st.info("Select at least one paper above to search its content.")
         return
     assistant = (assistant_factory or ResearchAssistant)(library)
-    st.caption("Search runs locally. Preview the passages before requesting an answer. Comparison synthesis is planned for Phase 4.")
+    st.caption("Search runs locally. Preview the passages before requesting an answer. Use the comparison panel below for a balanced multi-paper comparison.")
     permitted = st.checkbox(
         "Allow sending my question and retrieved passages to GPT-6.1 Sol through my signed-in Codex account",
         key="allow_codex_excerpts",

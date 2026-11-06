@@ -32,6 +32,12 @@ class Catalog:
                     chunk_ordinal INTEGER NOT NULL, text TEXT NOT NULL, pipeline_version TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS chunks_paper ON chunks(paper_id);
+                CREATE TABLE IF NOT EXISTS comparison_cards(
+                    cache_key TEXT PRIMARY KEY,
+                    paper_id TEXT NOT NULL REFERENCES papers(paper_id) ON DELETE CASCADE,
+                    paper_version TEXT NOT NULL, card_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
             """)
             row = db.execute("SELECT value FROM metadata WHERE key='fingerprint'").fetchone()
             if row and row[0] != fingerprint and db.execute("SELECT count(*) FROM papers").fetchone()[0]:
@@ -135,3 +141,36 @@ class Catalog:
             ).fetchall()
             fingerprint = db.execute("SELECT value FROM metadata WHERE key='fingerprint'").fetchone()[0]
         return hashlib.sha256(json.dumps([fingerprint, [tuple(row) for row in rows]]).encode()).hexdigest()
+
+    def paper_version(self, paper_id: str) -> str | None:
+        import hashlib
+        paper = self.paper(paper_id)
+        if not paper or paper.status != "ready":
+            return None
+        chunks = self.chunks(paper_id)
+        payload = [paper.model_dump(), [chunk.model_dump() for chunk in chunks]]
+        return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+    def comparison_card(self, cache_key: str) -> str | None:
+        with self.connection() as db:
+            row = db.execute(
+                "SELECT c.card_json FROM comparison_cards c JOIN papers p ON p.paper_id=c.paper_id "
+                "WHERE c.cache_key=? AND p.status='ready'", (cache_key,),
+            ).fetchone()
+            return row[0] if row else None
+
+    def save_comparison_card(self, cache_key, paper_id, paper_version, card_json, *, limit=16):
+        from datetime import datetime, timezone
+        with self.connection() as db:
+            db.execute("INSERT OR REPLACE INTO comparison_cards VALUES(?,?,?,?,?)", (
+                cache_key, paper_id, paper_version, card_json, datetime.now(timezone.utc).isoformat(),
+            ))
+            db.execute(
+                "DELETE FROM comparison_cards WHERE paper_id=? AND cache_key NOT IN "
+                "(SELECT cache_key FROM comparison_cards WHERE paper_id=? "
+                "ORDER BY created_at DESC,cache_key DESC LIMIT ?)", (paper_id, paper_id, limit),
+            )
+
+    def discard_comparison_card(self, cache_key):
+        with self.connection() as db:
+            db.execute("DELETE FROM comparison_cards WHERE cache_key=?", (cache_key,))
