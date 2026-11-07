@@ -1,9 +1,9 @@
 # Domain-Specific RAG Chatbot Using Large Language Models
 
-A local research assistant for AI and Computer Science papers. **Phase 5 adds
-local recovery, safer service/storage failures and source-page navigation** to
-the existing PDF library, hybrid retrieval, cited chat and paper-balanced
-comparisons. Retrieval/faithfulness evaluation remains Phase 6.
+A local research assistant for AI and Computer Science papers. **Phase 6 adds
+reproducible three-mode retrieval evaluation and human claim-review workflows** to
+the existing PDF library, hybrid retrieval, cited chat, paper-balanced comparisons
+and recovery. Public benchmark labels remain draft until human review.
 
 The approved architecture is unchanged. Generation remains **GPT-6.1 Sol
 (`gpt-6.1-sol`) through signed-in Codex and the official Python SDK**. Uploading,
@@ -17,6 +17,9 @@ retrieved excerpts only when you permit it. There is no provider or API-key fall
 - [Phase 3 implementation and validation](reports/PHASE3_REPORT.md)
 - [Phase 4 implementation and validation](reports/PHASE4_REPORT.md)
 - [Phase 5 implementation and validation](reports/PHASE5_REPORT.md)
+- [Phase 6 implementation and measured evidence](reports/PHASE6_REPORT.md)
+- [Evaluation and human-review guide](eval/README.md)
+- [Setup and demonstration](docs/DEMO.md)
 - [Git workflow](docs/GIT_WORKFLOW.md)
 
 ## Run the application
@@ -112,9 +115,9 @@ python3.12 -m venv .venv
 
 `pyproject.toml` pins direct dependencies. `requirements-phase2.lock` records the
 complete tested environment; `requirements-phase1.lock` is retained as the
-historical Phase 1 snapshot. Phases 3–5 use the same installed dependency versions;
+historical Phase 1 snapshot. Phases 3–6 use the same installed dependency versions;
 the existing LangSmith dependency is now explicitly pinned for disabling tracing.
-No new third-party package or model was installed for Phases 3–5. Other platforms may require compatible wheels.
+No new third-party package or model was installed for Phases 3–6. Other platforms may require compatible wheels.
 The environment and public model cache are not committed. After source edits,
 repeat `pip install --no-deps .` with the environment's Python to refresh the
 installed verification CLI. Running from the checkout uses its current source.
@@ -308,6 +311,53 @@ SDK's public turn stream preserves these codes; its convenience `run()` flattens
 failed turns. Existing isolation and timeout/cancellation checks still apply.
 Application logs use fixed error/event codes and counts without private content.
 
+## Phase 6 evaluation
+
+The Streamlit architecture and model/authentication remain unchanged. Evaluation
+uses local Python services/CLI, with no new REST endpoints or third-party package.
+
+After preparing the versioned public PDFs and frozen draft dataset as described in
+[the evaluation guide](eval/README.md), run the complete local retrieval comparison:
+
+```bash
+HF_HUB_OFFLINE=1 .venv/bin/python -m src.evaluation.cli --data-dir data/evaluation/public-six/library run --dataset data/evaluation/public-six/dataset.json --allow-draft --output eval/results/public-six-run.json
+```
+
+This makes **zero LLM requests** and preserves BM25/vector/hybrid budgets and
+paper/category balancing. It reports raw Precision/Recall/MRR at K=5/10 separately
+from retained-context quality, required-paper coverage, timing and split/task strata.
+The output is explicitly exploratory while labels are draft. In the measured run,
+hybrid did not outperform BM25 under the draft labels; no improvement is invented.
+
+Generation evaluation requires `--generate --allow-remote --max-model-requests N`.
+The default request budget is zero. Existing Codex allowance applies; no API credits
+or paid judge are assumed. Valid answers/cards are cached and revalidated against
+canonical source records, and label-review changes alone do not force regeneration.
+Cache timing is kept separate from fresh-model timing. Budget exclusions and failures
+are not counted as good abstentions.
+
+Use `review-template` to produce pending human atomic-claim/citation judgments and
+`review-score` after a person completes them. Unsupported/pending/uncertain claims
+and review coverage remain explicit; empty answers never receive automatic perfect
+faithfulness. Structural citation validity is separate from semantic passage support.
+Ragas remains optional and disabled because the existing Codex runnable's judge
+compatibility is unverified; no provider/authentication fallback is added.
+
+The six public PDFs/indexes, frozen canonical labels, answer caches, review sheets
+and raw runs remain under ignored `data/` or `eval/results/`. Only public-safe paper
+references, draft definitions and curated aggregate reports are publishable. Source
+inspection can explicitly print passages locally; do not publish private output.
+See [the demo guide](docs/DEMO.md) for setup and an end-to-end walkthrough.
+
+Explicit synthetic live evaluation verification (up to six application model calls):
+
+```bash
+HF_HUB_OFFLINE=1 .venv/bin/python -m src.phase6_verification --live --report reports/phase6-check.json
+```
+
+`rag-evaluate` and `rag-verify-evaluation` are installed equivalents after refreshing
+the local package. Use new output filenames; existing datasets/reports are preserved.
+
 ## Important files
 
 | File | Purpose |
@@ -336,7 +386,10 @@ Application logs use fixed error/event codes and counts without private content.
 | `src/phase4_verification.py` | Explicit synthetic multi-paper comparison and card-cache verifier |
 | `src/ingestion/recovery.py` | Canonical consistency, unavailable sources, idempotent derived-index repair |
 | `src/ui/maintenance.py`, `sources.py` | Recovery controls, unavailable-paper guidance, navigation and state invalidation |
-| `tests/` | Existing regressions plus recovery fault injection, process interruption, runtime and UI tests |
+| `src/evaluation/` | Frozen labels, custom metrics, three-mode runner, budget/cache and human review |
+| `src/phase6_verification.py` | Explicit isolated synthetic evaluation and answer-cache check |
+| `eval/`, `docs/DEMO.md` | Public draft definitions and reproducible evaluation/demo instructions |
+| `tests/` | Existing regressions plus recovery and evaluation contracts/integration tests |
 
 Local runtime layout (all ignored):
 
@@ -354,23 +407,23 @@ data/
 
 ```bash
 .venv/bin/python -m pytest -q
-# Include all four real MiniLM integration tests (first use may download public weights):
-HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase5-all-tests.xml
+# Include all five real MiniLM integration tests (first use may download public weights):
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase6-all-tests.xml
 .venv/bin/python -m pip check
 ```
 
 The standard suite uses synthetic PDFs and deterministic test embeddings while
 exercising real PyMuPDF, LlamaIndex, Chroma, BM25, SQLite, Streamlit and LangChain.
-No pytest test makes an LLM request. The four real embedding tests are skipped
+No pytest test makes an LLM request. The five real embedding tests are skipped
 unless opted in. After public model caching, the full suite can run with
-`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 5 report](reports/PHASE5_REPORT.md).
+`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 6 report](reports/PHASE6_REPORT.md).
 
-Latest Phase 5 validation (November 7, 2026): **298 tests passed, none skipped**,
-including all 234 existing Phase 1–4 tests. The separate November 7 live synthetic
-RAG check passed through the exact signed-in Codex model: retrieved context, grounded
-answer, canonical citation/page, insufficient-evidence response and isolation checks.
-Local HTTP smoke also passed. The November 6 live comparison check remains recorded
-in the Phase 5 report; automated generation tests use mocks and incur no LLM usage.
+Latest Phase 6 validation (November 7, 2026): **350 tests passed, none skipped**,
+including all 298 existing Phase 1–5 tests and five real MiniLM integrations. The
+separate synthetic live evaluation check passed through signed-in `gpt-6.1-sol`
+with six model requests; repeating the six cases used zero requests through cache.
+No real benchmark paper was sent to a hosted model. The 90-case public retrieval
+run used zero LLM calls. Scientific label/claim review remains pending.
 
 Explicit worker verification (requires signed-in Codex and OS execution permission):
 
@@ -422,7 +475,8 @@ evidence worker and synthetic RAG workflow.
   tables, and layout-dependent meaning are not reliably interpreted.
 - Source IDs, selected papers, canonical passages and PDF pages are validated.
   This establishes traceability, not semantic support for every claim. Retrieval
-  quality, faithfulness and hallucination measurement remain Phase 6; no accuracy
+  quality metrics now have local evaluation tools. Final relevance labels and
+  semantic faithfulness/hallucination scores still require human review; no accuracy
   improvement or general injection immunity is claimed from synthetic checks.
 - This is a single-user local app. Recovery checks run on startup or explicit
   request and add local disk I/O; external changes after startup require another
@@ -448,13 +502,15 @@ evidence worker and synthetic RAG workflow.
 
 ## Git workflow and stop point
 
-Phases 1–4 have been published to
+Phases 1–5 have been published to
 [sumanyuu10/domain-specific-rag-chatbot](https://github.com/sumanyuu10/domain-specific-rag-chatbot).
-Phase 5 is completed, tested and reviewed. The user approved its commit and push
-on November 7, 2026. Phase 5 commit message:
+Phase 6 implementation and automated testing are completed. The user reviewed
+and approved publication of the tooling on November 7, 2026. Public benchmark
+labels and generated claims still await human review; scientific validation is
+not completed. Approved Phase 6 commit message:
 
 ```text
-feat: add phase 5 library recovery and resilient source workflows
+feat: add phase 6 reproducible RAG evaluation and review workflow
 ```
 
 `.gitignore` excludes `.env` variants, credentials, PDFs/private documents, local
@@ -462,8 +518,9 @@ databases/vectors/models, caches, environments, build output, and raw reports.
 Only `.env.example`, source, tests, and curated documentation are publishable.
 Publication follows the [Git workflow](docs/GIT_WORKFLOW.md); future phase commits
 and pushes require their own approval.
-**Stop after the authorized Phase 5 publication. Phase 6 has not started and requires
-explicit approval.** See [the preparation plan](PROJECT_PROGRESS.md#phase-6-preparation--not-implemented) for evaluation scope, proposed files, dependencies and security.
+**Stop after the authorized Phase 6 publication. Human benchmark review remains
+open. The approved roadmap defines no later phase; further work needs explicit
+scope approval.** See [the remaining acceptance tasks](PROJECT_PROGRESS.md#next-phase-in-the-approved-roadmap).
 
 ## Implementation references
 

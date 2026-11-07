@@ -127,7 +127,7 @@ Phase 5 is implemented, tested and reviewed. The user approved commit/push on
 November 7, 2026. Recheck the source/test/doc diff, exclusions, full suite, live
 synthetic RAG and fetched remote before staging only the relevant Phase 5 files.
 Use a normal push and stop on test failures, authentication issues, conflicts or
-unexpected remote changes. Phase 6 has not started and requires separate approval.
+unexpected remote changes. Phase 6 implementation and publication were subsequently approved separately.
 
 ```bash
 HF_HUB_OFFLINE=1 HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q
@@ -140,6 +140,30 @@ Approved Phase 5 commit message:
 `feat: add phase 5 library recovery and resilient source workflows`.
 Local recovery modifies only the ignored library; never stage its PDFs, databases,
 card caches, vector records or raw verification reports.
+
+## Phase 6 review boundary
+
+The user retained the original evaluation scope; no backend API was authorized.
+Phase 6 implementation and automated testing are completed. The user reviewed
+and approved commit/push on November 7, 2026. Draft relevance labels and unreviewed
+generated claims remain pending human validation; publication approval is not
+scientific acceptance. Review `reports/PHASE6_REPORT.md`, `eval/README.md`, the exact
+staged diff/exclusions and fetched remote history before publishing only Phase 6
+files. Use a normal push; stop on failures, authentication issues, conflicts or
+unexpected remote changes.
+
+```bash
+HF_HUB_OFFLINE=1 HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q
+.venv/bin/python -m pip check
+git status --short
+git diff --check
+```
+
+Approved Phase 6 commit message:
+`feat: add phase 6 reproducible RAG evaluation and review workflow`.
+Review public definitions/aggregates before staging. Keep PDFs, canonical labels,
+model weights, review sheets, caches and raw evaluation artifacts excluded.
+No later phase is automatically authorized.
 
 ## What stays local
 

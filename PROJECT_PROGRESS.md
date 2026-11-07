@@ -4,10 +4,13 @@ Last updated: November 7, 2026.
 
 ## Current phase
 
-**Phase 5 — recovery, service failures and source/UI refinement.**
-Implementation and validation are complete. The user reviewed Phase 5 and approved
-its commit and push on November 7, 2026. This publication follows the checks in the
-Phase 5 report. Phase 6 requires separate explicit approval and has not started.
+**Phase 6 — evaluation tooling and reproducible demonstration.**
+The user explicitly retained the recorded evaluation scope and selected six public
+AI/CS papers. Phase 6 implementation and automated testing are **completed**.
+The user reviewed the tooling and approved commit/push on November 7, 2026.
+Public-paper relevance labels remain **draft**, and generated claims await human
+review; scientific benchmark acceptance is still open. Publication approval does
+not validate the benchmark or authorize a later phase.
 
 ## Completed phases
 
@@ -85,10 +88,10 @@ See [the Phase 4 report](reports/PHASE4_REPORT.md).
 
 | Phase | Approved roadmap scope | Status |
 | --- | --- | --- |
-| 6 | Labeled dataset, three-mode retrieval evaluation, claim faithfulness/hallucination review, optional Ragas and final demo/guide | Pending |
+| 6 | Implementation and automated testing completed; relevance-label and human claim validation remain | Tooling approved for publication; scientific validation pending |
 
 The approved [architecture reference](docs/ARCHITECTURE.md) and diagram remain
-unchanged. Phase 5 extends existing lifecycle behavior; quality evaluation remains Phase 6.
+unchanged. Phase 6 reuses the existing local services; it adds evaluation commands, not a REST service.
 
 ## Important components
 
@@ -132,7 +135,8 @@ unchanged. Phase 5 extends existing lifecycle behavior; quality evaluation remai
 - PDF extraction remains heuristic; OCR/scans, figure interpretation, equations
   and complex tables remain unsupported. No new parsing service was introduced.
 - Citation validation establishes traceability, not semantic support for every
-  generated claim. Faithfulness/hallucination and retrieval metrics remain Phase 6.
+  generated claim. Phase 6 supplies retrieval metrics and a human support-review
+  workflow; final scientific labels and semantic scores are not automatically inferred.
 - Condition matching is deliberately conservative and uses normalized strings;
   synonymous protocols may be labeled not directly comparable. Matching labels
   do not prove scientific equivalence or a fair performance comparison.
@@ -152,7 +156,9 @@ unchanged. Phase 5 extends existing lifecycle behavior; quality evaluation remai
 - `.gitignore` excludes private documents, credentials, runtime/index/model data and
   raw reports; it cannot identify arbitrary secrets pasted into source.
 
-## Phase 5 — completed, reviewed and approved for publication
+## Phase 5 — published
+
+Commit `d253da8`; Phase 5 was separately reviewed, committed and pushed before Phase 6.
 
 - Startup and an explicit sidebar recovery action audit SQLite integrity and foreign
   keys, safe paper IDs/states, canonical page/chunk metadata and identities, PDF
@@ -220,83 +226,135 @@ and vector batches, so startup has extra disk I/O. Storage changes made outside 
 application after startup require explicit recovery or restart. The app remains local
 and single-user. Managed sign-in/quotas can change; unsupported access fails closed.
 
-## Phase 6 preparation — not implemented
+## Phase 6 — implemented evaluation scope
 
-The approved final phase covers the labeled dataset, fair BM25/vector/hybrid
-retrieval evaluation, claim-level faithfulness/hallucination review, optional Ragas
-and the final setup/demo guide. It preserves the existing local architecture.
-No Phase 6 modules, datasets, endpoints, dependencies or evaluation runs have
-been created by this publication update.
+- Add strict frozen datasets bound to exact corpus/pipeline/paper versions and
+  canonical chunk/page/content hashes. Reject stale or malformed labels. Public
+  and private labels are separate; generated proposals never claim human review.
+- Add Precision/Recall/MRR at K=5/10, retained-context precision/recall and required
+  evidence-paper coverage. Short lists count missing rank positions as misses;
+  duplicate IDs earn no extra credit; empty gold sets have explicit null metrics.
+- Execute BM25, vector and hybrid through existing LangChain/retrieval services
+  with identical corpus, candidate/context budgets and selected paper/category
+  balancing. Evaluate full candidate ranks separately from smaller LLM context.
+  Average comparison units per question before aggregating; retain split/kind/task
+  strata and separate warm-up, retrieval, fresh generation and cache timing.
+- Add explicit opt-in remote generation and an application request cap (default
+  zero), including application retries/repair. Keep the original signed-in Codex
+  model/authentication/isolation. Account/request failures halt further uncached
+  generation; operational failures and budget exclusions remain visible.
+- Cache validated answers/comparisons locally using prompt/model/SDK/schema/mode/
+  corpus/context identities. Revalidate canonical provenance before reuse. Changes
+  only to human labels/review stamps do not cause unnecessary model requests.
+- Add pending human atomic-claim/citation review sheets tied to an exact run digest.
+  Score assessed support/hallucination, citation support and human answer relevance
+  with explicit denominator/coverage fields. Empty factual output never earns an
+  automatic perfect score. Structural source validity remains a different measure.
+- Add 30 draft definitions over six versioned public papers: Transformer, BERT,
+  RoBERTa, DPR, RAG and LoRA. Pin PDF hashes; local preparation binds source-page
+  lexical anchors to canonical chunks in a dedicated library. Preserve the approved
+  12/8/5/5 question mix and ten-development/twenty-held-out split.
+- Add CLI commands for public preparation, local label freezing, inspection,
+  three-mode runs, pending review templates and human-review scoring. Add a generated
+  synthetic live verifier and setup/demo guide. No FastAPI/REST endpoints were added.
+- Ragas is optional and remains disabled/not installed: current client/adapter
+  compatibility with the Codex runnable is not verified. No paid/API-key judge or
+  substitute model is silently selected. The implemented baseline is custom metrics
+  and human review, with no new third-party dependencies.
 
-1. Freeze a six-paper corpus and source-preserving chunk configuration. Manually
-   label 30 questions: 12 single-paper, eight comparisons, five unanswerable and
-   five misleading/conflict cases; reserve ten for development and twenty held out.
-   Store selected paper IDs, expected points, answerability, PDF pages/passages,
-   relevant canonical chunk IDs and label rationale. Human review is required;
-   model-generated labels are not automatically ground truth. Detect deleted or
-   re-chunked sources and refuse stale labels. Report recall against labeled evidence
-   when the relevant set is incomplete.
-2. Implement `src/evaluation/dataset.py`, `retrieval_metrics.py` and `runner.py` to
-   reuse the canonical catalog and existing retrievers with `bm25`, `vector` and
-   `hybrid` modes. Reconstruct complete ranked IDs for K=5/10 from sparse/dense/RRF
-   outputs, and assess the bounded context actually sent to the LLM separately.
-   Keep paper selection, candidates, context budgets, prompts/model and corpus
-   fixed across modes. Extend the existing comparison retriever's mode parameter
-   only as needed for the same paper/category balancing; retain hybrid defaults.
-3. Add `src/evaluation/faithfulness.py` for human claim/support review, structural
-   citation validity versus actual passage support, hallucination rate, answer
-   relevance and correct/false abstention. Include paper coverage, retrieval and
-   generation/end-to-end latency. Empty factual output is not automatically perfect
-   faithfulness. Cache valid generated artifacts with corpus/model/prompt identities
-   and report failures, retries, regressions and denominator exclusions explicitly.
-4. Prepare the public-safe dataset description/template in `eval/README.md` and
-   reviewed public labels in `eval/questions.jsonl`; private labels/passages belong
-   under ignored `data/evaluation/`. Keep raw artifacts in ignored `eval/results/`.
-   Publish only reviewed summaries and public/licensed examples. Add a final demo
-   and reproducible setup/run guide; never invent an improvement percentage.
-5. Optionally add `src/evaluation/ragas_runner.py` after checking a pinned Ragas
-   version and an explicit compatible Codex judge adapter. Do not assume that the
-   current LangChain runnable is automatically accepted by Ragas. Use local embeddings
-   where supported; remain with custom metrics/human review if compatibility fails.
-   No alternate provider, API key or paid judge is authorized. Model judging is
-   opt-in, usage-budgeted, cached and compared with human review.
-6. Add deterministic metric/schema/stale-label/aggregation tests, three-mode real
-   index integration tests and existing regression checks. Automated generation
-   tests use mocks; clearly separate any permissioned live evaluation subset and
-   record its request usage. Use synthetic fixtures for CI and include all actual
-   MiniLM tests plus HTTP/UI checks when UI behavior changes.
+### Test and run evidence
 
-### Integration, endpoints and security
+**350 tests passed, no failures/errors/skips; 23.66 seconds at the publication recheck.** All 298 original
+Phase 1–5 tests passed unchanged, plus 52 Phase 6 cases, with all five actual MiniLM
+integrations enabled from cached public weights and HF Hub networking disabled.
+Automated generation uses mocks and makes no LLM request.
 
-Proposed evaluation modules call `HybridRetriever.retrieve`, `ResearchAssistant.search`
-and `ResearchAssistant.answer`, plus the balanced comparison service and canonical
-citation validators. LlamaIndex/PyMuPDF ingestion and Chroma/BM25 indexes are reused;
-there is no duplicate corpus, new vector store, FastAPI service or React frontend.
-No new REST endpoints are needed. A local runner/CLI calls Python services and the
-existing official Codex SDK gateway. The local Streamlit interface remains unchanged
-unless a small evaluation display is approved within this scope.
+The public corpus contains six PDFs, 102 pages and 559 canonical chunks. A complete
+30-question × three-mode run produced **90 retrieval cases**, no failures and zero
+LLM calls. Labels remain draft and are biased/incomplete proposals, not accepted
+benchmark ground truth. The observed hybrid results did not exceed BM25 under these
+labels. See the curated [Phase 6 report](reports/PHASE6_REPORT.md) for the actual
+exploratory scores, denominators and limitations; no improvement is invented.
 
-Core evaluation can use existing pinned Python libraries, custom calculations and
-standard-library serialization/timing. Ragas is an optional dependency only after
-compatibility/cost checks. Existing exact `gpt-6.1-sol`, `openai-codex==0.163.0` and
-ChatGPT-managed sign-in are retained; November 7 live RAG/injection/citation and
-insufficient-evidence checks passed. Future inference depends on this account's
-allowance and must be checked before a larger run. Subscription access is not
-assumed to supply direct OpenAI API credits, and nothing is purchased automatically.
+The separate synthetic live verifier passed using exact `gpt-6.1-sol`, ChatGPT-managed
+sign-in and official SDK/runtime `0.163.0`: two generated questions × three modes,
+six model requests, canonical citations and missing-evidence acknowledgment. Repeating
+all six cases reused validated answers with zero new requests. Real benchmark papers
+were not sent for generation. Semantic scores remain unclaimed without human review.
 
-Keep upload extension/content checks, size/page/capacity limits, hash-based filenames,
-source selection/consent, isolated generation and disabled tracing. Treat PDF and
-label text as untrusted data. Do not import external Joblib snapshots, log questions/
-passages or publish raw results containing private evidence. Recheck exports and
-Git exclusions before publication. Current uploads remain local; public hosting,
-authentication systems, OCR and infrastructure changes remain outside this phase.
+### Important Phase 6 files
+
+| Files | Purpose |
+| --- | --- |
+| `src/evaluation/dataset.py` | Strict labels, frozen-corpus checks and draft/review identity |
+| `src/evaluation/retrieval_metrics.py` | Deterministic ranking/context metrics and denominators |
+| `src/evaluation/runner.py` | Three-mode execution, strata, request caps and run artifacts |
+| `src/evaluation/artifacts.py` | Exclusive local writes, digest checks and canonical answer-cache validation |
+| `src/evaluation/faithfulness.py` | Pending atomic claim/citation review, human metrics and structural/abstention checks |
+| `src/evaluation/benchmark.py`, `cli.py` | Public draft binding and local evaluation commands |
+| `src/retrieval/comparison.py`, generation comparison service/validator | Optional mode selection; original hybrid defaults/cache keys preserved |
+| `src/phase6_verification.py` | Explicit isolated synthetic evaluation/live/cache check |
+| `eval/papers.json`, `questions.jsonl`, `README.md` | Versioned public references, draft definitions and detailed review/run guide |
+| `docs/DEMO.md`, `reports/PHASE6_REPORT.md` | Reproducible setup/demo and measured evidence |
+| New evaluation tests | Metrics, labels, review, budgets, cache, CLI, actual indexes/MiniLM and verifier gates |
+
+### Remaining acceptance work and limitations
+
+A person must inspect pooled candidates/pages, correct the draft evidence labels,
+confirm unanswerable cases and record actual reviewer/time before a final benchmark.
+Human atomic-claim review and relevance judgments are also needed for semantic scores.
+The schema checks reviewer metadata, but cannot prove that someone performed the
+review or supplied a complete decomposition. No invented reviewer is recorded.
+
+Ragas judging, broad adversarial/real-world claims, public hosting, OCR and a backend
+API remain outside the delivered baseline. The existing parser/experimental-protocol
+limitations remain. Budget caps count application calls, not tokens or any runtime-
+internal retries. Evaluation outputs can include source passages and stay ignored;
+only public-safe definitions and curated aggregates belong in Git. Local digests
+catch accidental edits, not malicious rewriting. Five upstream SWIG warnings remain.
+
+## Next phase in the approved roadmap
+
+There is **no Phase 7 or later phase defined** in this repository. The approved
+architecture's final roadmap items are evaluation, optional compatible Ragas,
+correction of observed failures and the setup/demo guide. The tools and guide are
+implemented; scientific acceptance still needs the following Phase 6 review work.
+No new frontend/backend framework is inferred or authorized.
+
+1. A person inspects pooled BM25/vector/hybrid passages for all 30 questions across
+   the six versioned papers, corrects relevance/category/absence labels and expected
+   points, and records a genuine reviewer/time. Keep the frozen chunk configuration
+   and development/held-out split. This review must not be supplied by fabricated
+   reviewer metadata or inferred from code approval.
+2. Revalidate labels with `src/evaluation/dataset.py` and rerun the three modes via
+   `runner.py`/`cli.py` with matching budgets and source identities. Deliver a reviewed
+   dataset and reproducible per-case/aggregate results, including failures and
+   regressions; preserve the original draft finding as a historical measurement.
+3. Only if excerpt sharing and a model-request budget are explicitly authorized,
+   generate a bounded answer subset through the existing gateway. Use
+   `faithfulness.py`/review templates for human atomic-claim, citation-support and
+   relevance judgments. Deliver completed human sheets and denominator/coverage-aware
+   metrics. Do not claim semantic scores for unreviewed outputs.
+4. Re-run the existing 350-test suite, all five actual MiniLM integrations, stale-label,
+   provenance, cap/cache and review-identity checks. Compare reports using the same
+   corpus/settings, inspect exclusions and privately retained raw artifacts, and
+   update curated findings/demo guidance only when evidence supports the change.
+
+Dependencies remain the current pinned Python environment, local public PDFs and
+indexes, and an actual human reviewer. Retrieval/review tools need no hosted API;
+optional generation depends on current signed-in `gpt-6.1-sol` access/allowance.
+Ragas remains optional and disabled; a compatible judge would require its own
+verification/approval. No REST endpoints, FastAPI service, new deployment or model/
+authentication change is part of this remaining acceptance work.
 
 ## Next steps and stop point
 
-1. Publish only the reviewed Phase 5 changes after the final checks pass.
-2. Obtain explicit approval before beginning Phase 6.
+1. Publish only the reviewed Phase 6 tooling after the final checks pass.
+2. Keep scientific validation pending until the actual human review is completed.
+3. Define and approve any later scope before implementation; no next phase is assumed.
 
-Approved Phase 5 commit message:
-`feat: add phase 5 library recovery and resilient source workflows`
+Approved Phase 6 commit message:
+`feat: add phase 6 reproducible RAG evaluation and review workflow`
 
-**Stop after the authorized Phase 5 publication; do not implement Phase 6 without approval.**
+**Stop after the authorized Phase 6 publication. Scientific human review is still
+pending; do not begin further work without explicit approval.**

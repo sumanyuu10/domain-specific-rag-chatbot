@@ -1,0 +1,56 @@
+[
+  {
+    "key": "transformer",
+    "title": "Attention Is All You Need",
+    "arxiv_version": "1706.03762v7",
+    "source_url": "https://arxiv.org/abs/1706.03762v7",
+    "pdf_url": "https://arxiv.org/pdf/1706.03762v7",
+    "sha256": "bdfaa68d8984f0dc02beaca527b76f207d99b666d31d1da728ee0728182df697",
+    "redistribute_pdf": false
+  },
+  {
+    "key": "bert",
+    "title": "BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding",
+    "arxiv_version": "1810.04805v2",
+    "source_url": "https://arxiv.org/abs/1810.04805v2",
+    "pdf_url": "https://arxiv.org/pdf/1810.04805v2",
+    "sha256": "5692a5514787a8c6727b4ff3b726a3385798bc68e12138d1d4af83947e2acf6e",
+    "redistribute_pdf": false
+  },
+  {
+    "key": "roberta",
+    "title": "RoBERTa: A Robustly Optimized BERT Pretraining Approach",
+    "arxiv_version": "1907.11692v1",
+    "source_url": "https://arxiv.org/abs/1907.11692v1",
+    "pdf_url": "https://arxiv.org/pdf/1907.11692v1",
+    "sha256": "76a3872d244793563a5b000b818cbaf0ca8972ab1145d32be474c05b2a8f3070",
+    "redistribute_pdf": false
+  },
+  {
+    "key": "dpr",
+    "title": "Dense Passage Retrieval for Open-Domain Question Answering",
+    "arxiv_version": "2004.04906v3",
+    "source_url": "https://arxiv.org/abs/2004.04906v3",
+    "pdf_url": "https://arxiv.org/pdf/2004.04906v3",
+    "sha256": "3e67fc1a9977715acf722d85f0b7d124b03715e975f6310a4d6c12094190912f",
+    "redistribute_pdf": false
+  },
+  {
+    "key": "rag",
+    "title": "Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks",
+    "arxiv_version": "2005.11401v4",
+    "source_url": "https://arxiv.org/abs/2005.11401v4",
+    "pdf_url": "https://arxiv.org/pdf/2005.11401v4",
+    "sha256": "23e3249e9a1e75418d82efecab0ea8c4d033b89c93742f63208d47ce01f21233",
+    "redistribute_pdf": false
+  },
+  {
+    "key": "lora",
+    "title": "LoRA: Low-Rank Adaptation of Large Language Models",
+    "arxiv_version": "2106.09685v2",
+    "source_url": "https://arxiv.org/abs/2106.09685v2",
+    "pdf_url": "https://arxiv.org/pdf/2106.09685v2",
+    "sha256": "e9a0d3128767db616085dc0f4e6e455e672e89af823e8ed1282793682787395a",
+    "redistribute_pdf": false
+  }
+]

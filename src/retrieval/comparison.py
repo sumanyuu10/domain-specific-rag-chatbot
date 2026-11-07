@@ -36,6 +36,7 @@ class ComparisonEvidence:
     corpus_version: str
     retrieval_ms: int
     settings: ComparisonSettings
+    retrieval_mode: str = "hybrid"
 
 
 class BalancedRetriever:
@@ -43,8 +44,10 @@ class BalancedRetriever:
         self.library = library
         self.settings = settings or ComparisonSettings()
 
-    def collect(self, question: str, paper_ids: list[str], categories=None, *, progress=None):
+    def collect(self, question: str, paper_ids: list[str], categories=None, *, progress=None, mode="hybrid"):
         start = time.perf_counter()
+        if mode not in {"bm25", "vector", "hybrid"}:
+            raise RetrievalError("Unknown comparison retrieval mode.")
         if not isinstance(question, str):
             raise RetrievalError("Enter a text comparison focus.")
         question = " ".join(question.split()) or DEFAULT_FOCUS
@@ -75,9 +78,9 @@ class BalancedRetriever:
                     if progress: progress("retrieving", paper_id, category)
                     with tracing_context(enabled=False, parent=False, replicas=[]):
                         contexts[category] = retrieve.invoke({
-                            "question": f"{question} {CATEGORY_QUERIES[category]}", "paper_ids": [paper_id],
+                            "question": f"{question} {CATEGORY_QUERIES[category]}", "paper_ids": [paper_id], "mode": mode,
                         })
                 papers.append(PaperEvidence(ready[paper_id], self.library.catalog.paper_version(paper_id), contexts))
         return ComparisonEvidence(
-            question, requested, papers, version, round((time.perf_counter() - start) * 1000), self.settings,
+            question, requested, papers, version, round((time.perf_counter() - start) * 1000), self.settings, mode,
         )

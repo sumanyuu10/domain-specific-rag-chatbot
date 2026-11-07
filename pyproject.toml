@@ -31,6 +31,8 @@ dev = ["pytest==9.2.0"]
 rag-verify-codex = "src.verification:main"
 rag-verify-rag = "src.phase3_verification:main"
 rag-verify-comparison = "src.phase4_verification:main"
+rag-evaluate = "src.evaluation.cli:main"
+rag-verify-evaluation = "src.phase6_verification:main"
 
 [tool.setuptools]
 package-dir = {"" = "."}

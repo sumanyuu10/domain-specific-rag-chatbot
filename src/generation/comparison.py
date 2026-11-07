@@ -36,8 +36,8 @@ class ComparisonService:
         self.settings = settings or ComparisonSettings()
         self.retriever = BalancedRetriever(library, self.settings)
 
-    def collect(self, question, paper_ids, categories=None, *, progress=None):
-        return self.retriever.collect(question, paper_ids, categories, progress=progress)
+    def collect(self, question, paper_ids, categories=None, *, progress=None, mode="hybrid"):
+        return self.retriever.collect(question, paper_ids, categories, progress=progress, mode=mode)
 
     def _check(self, evidence):
         if evidence.settings != self.settings:
@@ -53,6 +53,9 @@ class ComparisonService:
             "sources": {category: [chunk.chunk_id for chunk in context.snapshot.documents]
                         for category, context in paper.contexts.items()},
         }
+        # Preserve Phase 4/5 hybrid cache identities; baseline modes are isolated.
+        if evidence.retrieval_mode != "hybrid":
+            payload["retrieval_mode"] = evidence.retrieval_mode
         return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
     def _request(self, template, schema, payload, parser, evidence):
