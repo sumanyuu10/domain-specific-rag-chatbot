@@ -18,6 +18,7 @@ def comparison_sources(evidence):
 
 
 def validate_evidence(library, evidence):
+    library.ensure_available(RetrievalError)
     if library.catalog.corpus_version() != evidence.corpus_version:
         raise RetrievalError("The paper library changed. Collect comparison evidence again.")
     ids = [paper.paper.paper_id for paper in evidence.papers]

@@ -57,6 +57,7 @@ class HybridRetriever:
             raise RetrievalError("Select at least one indexed paper.")
         # The same lock as ingestion/deletion prevents mixed corpus snapshots.
         with self.library.lock:
+            self.library.ensure_available(RetrievalError)
             ready = {paper.paper_id for paper in self.library.catalog.papers()}
             if not selected <= ready:
                 raise RetrievalError("The paper selection changed or includes an unavailable paper. Select it again.")

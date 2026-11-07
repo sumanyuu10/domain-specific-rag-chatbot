@@ -5,6 +5,7 @@ import streamlit as st
 from src.generation.comparison import ComparisonService
 from src.retrieval.comparison import CATEGORY_QUERIES
 from src.schemas import RetrievalError
+from src.ui.sources import source_navigation, stale_source_error
 
 
 def render_comparison_result(result, labels):
@@ -59,6 +60,7 @@ def render_comparison_result(result, labels):
             for citation in result.citations:
                 st.text(f"{source_labels[citation.source_id]} · {citation.filename} · PDF page {citation.page_number}")
                 st.text(citation.passage)
+                source_navigation(citation.paper_id, citation.page_number, key=f"comparison_source_{citation.source_id}")
     st.caption(
         f"Validated card cache reused for {len(result.cached_paper_ids)} papers. "
         "Citations establish traceability; inspect the passages for claim support."
@@ -136,6 +138,7 @@ def render_comparison(library, *, service_factory=None):
             st.error(str(error) if isinstance(error, RetrievalError) else "The library is busy. Collect evidence again.")
             st.session_state.comparison_evidence = None
             st.session_state.comparison_result = None
+            stale_source_error(str(error) if isinstance(error, RetrievalError) else "The library is busy. Collect evidence again.")
         else:
             st.rerun()
     result = st.session_state.get("comparison_result")

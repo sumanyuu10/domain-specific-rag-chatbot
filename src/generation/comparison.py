@@ -25,8 +25,8 @@ from src.schemas import (
 )
 
 
-FATAL_CODES = {"authentication_required", "model_not_listed", "model_mismatch", "isolation_unverified", "unexpected_activity"}
-TRANSIENT_CODES = {"timeout", "sdk_failure", "incomplete_turn", "empty_answer"}
+FATAL_CODES = {"authentication_required", "model_not_listed", "model_mismatch", "isolation_unverified", "unexpected_activity", "quota_exceeded", "rate_limited", "context_limit", "request_rejected"}
+TRANSIENT_CODES = {"timeout", "sdk_failure", "incomplete_turn", "empty_answer", "network_error"}
 
 
 class ComparisonService:
@@ -155,7 +155,7 @@ class ComparisonService:
                     if error.code in FATAL_CODES:
                         failures.extend(PaperFailure(
                             paper_id=item.paper.paper_id, code="not_attempted",
-                            message="Generation stopped after an authentication, model or isolation failure.",
+                            message="Generation stopped after an account, request, model or isolation failure.",
                         ) for item in evidence.papers[number + 1:])
                         break
                     continue

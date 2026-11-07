@@ -1,9 +1,9 @@
 # Domain-Specific RAG Chatbot Using Large Language Models
 
-A local research assistant for AI and Computer Science papers. **Phase 4 adds
-paper-balanced comparisons, validated evidence cards and comparison tables** to
-the existing PDF library, hybrid retrieval and cited chat. Comprehensive recovery
-and quality evaluation remain in their approved later phases.
+A local research assistant for AI and Computer Science papers. **Phase 5 adds
+local recovery, safer service/storage failures and source-page navigation** to
+the existing PDF library, hybrid retrieval, cited chat and paper-balanced
+comparisons. Retrieval/faithfulness evaluation remains Phase 6.
 
 The approved architecture is unchanged. Generation remains **GPT-6.1 Sol
 (`gpt-6.1-sol`) through signed-in Codex and the official Python SDK**. Uploading,
@@ -16,6 +16,7 @@ retrieved excerpts only when you permit it. There is no provider or API-key fall
 - [Phase 2 implementation and validation](reports/PHASE2_REPORT.md)
 - [Phase 3 implementation and validation](reports/PHASE3_REPORT.md)
 - [Phase 4 implementation and validation](reports/PHASE4_REPORT.md)
+- [Phase 5 implementation and validation](reports/PHASE5_REPORT.md)
 - [Git workflow](docs/GIT_WORKFLOW.md)
 
 ## Run the application
@@ -63,8 +64,8 @@ Missing categories are labeled as gaps in the retrieved passages. Failed model
 requests are shown as failures, not missing paper content. **Retry failed comparison
 requests** reuses valid cached cards. Changing the focus, categories, selection
 or corpus clears the preview/result and resets comparison consent. Restart the
-app after updating to Phase 4 so its additive SQLite cache table is created;
-existing PDFs and vector indexes do not need rebuilding.
+app after updating so additive SQLite cache/issue tables are created and local
+consistency checks run. Valid PDFs and vector entries are reused.
 
 A library accepts **1–12 papers**, at most **25 MB and 200 pages per PDF**. Six to
 twelve is the intended research workload; a single paper is enough to start.
@@ -76,8 +77,8 @@ The first indexing operation downloads the pinned public
 No Hugging Face API key is required for this public model. Embeddings run on the
 local CPU; model assets are cached in `data/models`. Downloads need internet and
 may encounter public-host rate limits. After caching, local indexing can run
-offline. Opening, deleting, or reopening already indexed papers never loads the
-embedding model. The dependency environment itself is substantially larger than
+offline. Healthy reopening and deletion never load the embedding model. Repairing
+missing or damaged vectors loads the same local model and embeds only those chunks. The dependency environment itself is substantially larger than
 the model; allow several GB of disk space.
 
 The optional exported variable `RAG_DATA_DIR` selects another local data folder.
@@ -111,12 +112,37 @@ python3.12 -m venv .venv
 
 `pyproject.toml` pins direct dependencies. `requirements-phase2.lock` records the
 complete tested environment; `requirements-phase1.lock` is retained as the
-historical Phase 1 snapshot. Phases 3 and 4 use the same installed dependency versions;
+historical Phase 1 snapshot. Phases 3–5 use the same installed dependency versions;
 the existing LangSmith dependency is now explicitly pinned for disabling tracing.
-No new third-party package or model was installed for Phases 3 or 4. Other platforms may require compatible wheels.
+No new third-party package or model was installed for Phases 3–5. Other platforms may require compatible wheels.
 The environment and public model cache are not committed. After source edits,
 repeat `pip install --no-deps .` with the environment's Python to refresh the
 installed verification CLI. Running from the checkout uses its current source.
+
+## LLM configuration and access
+
+The application uses official `openai-codex==0.163.0` and its pinned app-server
+runtime with exact `gpt-6.1-sol`. Sign in through Codex; do not put credentials in
+this repository:
+
+```bash
+codex login
+# Optional shell configuration; .env is not automatically loaded:
+export RAG_CODEX_TIMEOUT_SECONDS=60
+.venv/bin/python -m src.verification
+```
+
+The last command checks this account's authentication/model access without model
+generation. The signed-in account must actually expose the selected model; there
+is no default-model/API-key fallback. Live `--live` checks below consume Codex
+allowance. A ChatGPT subscription is not treated as direct OpenAI API credits.
+Do not add `OPENAI_API_KEY`, copy an auth cache, or purchase credits automatically.
+
+Retrieved canonical LangChain Documents become bounded prompt passages with source
+IDs, filenames and PDF page numbers before the existing gateway is invoked. The
+LLM is given the question and these excerpts; it does not open the uploaded PDF.
+Source validation resolves output IDs to stored passages. Review passages for
+semantic support: structural citation validation alone does not establish truth.
 
 ## How Phase 2 works
 
@@ -244,9 +270,43 @@ runs again even when all cards are cached.
 
 Each card/synthesis request has at most two attempts total: an initial request and
 one transient retry or schema/citation repair. Authentication, model or isolation
-failures stop further generation. A failed card withholds synthesis until all
+failures, exhausted allowance, rate limits and rejected requests stop further generation. A failed card withholds synthesis until all
 selected papers have validated cards; successful cards remain cached for retry.
 No new SDK worker, provider, embedding model or vector store is introduced.
+
+## Recovery and source inspection
+
+Use **Check and recover local library** in the sidebar after a failed storage
+operation or an external local-file change. Startup runs the same checks under
+one library lock. Recovery never sends documents to an LLM.
+
+- Interrupted upload/deletion cleanup is repeatable. Healthy saved sources remain
+  available after recovery; incomplete operations cannot feed generation.
+- Missing, changed or inconsistent source papers appear as **unavailable**, with
+  restore/delete guidance. Their canonical records are preserved. Restore the
+  exact PDF/backup and run recovery, or explicitly delete and upload again.
+  Unavailable papers count toward the twelve-paper limit.
+- Missing/damaged derived vector entries are recreated through LlamaIndex/MiniLM.
+  BM25 is rebuilt from canonical text when missing, stale or inconsistent. The
+  stronger Phase 5 snapshot signature causes a one-time local BM25 rebuild;
+  it does not reparse PDFs, rechunk or re-embed healthy papers.
+- Orphan vector entries and abandoned hash-named PDFs in the app's paper folder
+  are cleaned; unmanaged filenames are preserved. Corrupt SQLite/Chroma storage
+  receives a safe diagnostic and can require a backup; the database is not reset.
+- Recovery/deletion invalidates old answers, comparisons, previews and consent.
+  Valid evidence cards survive derived-index repair and are revalidated on reuse.
+- In retrieved passages and citation panels, **Inspect this PDF page in the paper
+  library** opens the matching saved paper/page's original and cleaned extracted
+  text. It preserves the selected research scope; it is not a PDF image renderer.
+
+Generation errors distinguish missing/expired sign-in, exhausted Codex allowance,
+rate limits, context limits and network failures when the SDK provides a recognized
+structured code. Unknown errors stay generic. For sign-in, run `codex login`; for
+usage limits, wait/check account allowance. Local search remains available. No model,
+authentication, credit purchase or paid API fallback occurs. The pinned official
+SDK's public turn stream preserves these codes; its convenience `run()` flattens
+failed turns. Existing isolation and timeout/cancellation checks still apply.
+Application logs use fixed error/event codes and counts without private content.
 
 ## Important files
 
@@ -264,7 +324,7 @@ No new SDK worker, provider, embedding model or vector store is introduced.
 | `src/persistence.py` | SQLite catalog, canonical chunk lookup and active-corpus version |
 | `src/retrieval/bm25.py`, `vector.py`, `hybrid.py` | Sparse/dense filtering, RRF and context selection |
 | `src/retrieval/adapters.py` | Actual LangChain Documents and retrieval runnable |
-| `src/generation/llm.py`, `src/verification.py` | Preserved Phase 1 gateway/verifier; gateway adds isolation extension hooks |
+| `src/generation/llm.py`, `runtime.py`, `src/verification.py` | Fixed-model gateway, public SDK streaming, safe structured errors and verifier |
 | `src/generation/isolation.py` | Mandatory worker configuration and thread-permission checks |
 | `src/generation/prompts.py`, `chains.py`, `citations.py` | Versioned prompts, orchestration, one repair and canonical citations |
 | `src/ui/chat.py` | Local question search, consent, answers and source panels |
@@ -274,7 +334,9 @@ No new SDK worker, provider, embedding model or vector store is introduced.
 | `src/ui/comparison.py` | Local preview, consent, comparison tables, failures and original sources |
 | `src/phase3_verification.py` | Explicit isolation/canary and optional live synthetic RAG verifier |
 | `src/phase4_verification.py` | Explicit synthetic multi-paper comparison and card-cache verifier |
-| `tests/` | Existing regressions plus retrieval, answer, isolation, chat and verifier tests |
+| `src/ingestion/recovery.py` | Canonical consistency, unavailable sources, idempotent derived-index repair |
+| `src/ui/maintenance.py`, `sources.py` | Recovery controls, unavailable-paper guidance, navigation and state invalidation |
+| `tests/` | Existing regressions plus recovery fault injection, process interruption, runtime and UI tests |
 
 Local runtime layout (all ignored):
 
@@ -292,21 +354,23 @@ data/
 
 ```bash
 .venv/bin/python -m pytest -q
-# Include all three real MiniLM integration tests (first use may download public weights):
-HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase4-all-tests.xml
+# Include all four real MiniLM integration tests (first use may download public weights):
+HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q --junitxml=reports/phase5-all-tests.xml
 .venv/bin/python -m pip check
 ```
 
 The standard suite uses synthetic PDFs and deterministic test embeddings while
 exercising real PyMuPDF, LlamaIndex, Chroma, BM25, SQLite, Streamlit and LangChain.
-No pytest test makes an LLM request. The three real embedding tests are skipped
+No pytest test makes an LLM request. The four real embedding tests are skipped
 unless opted in. After public model caching, the full suite can run with
-`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 4 report](reports/PHASE4_REPORT.md).
+`HF_HUB_OFFLINE=1`. Results and limits are in the [Phase 5 report](reports/PHASE5_REPORT.md).
 
-Latest Phase 4 validation (November 6, 2026): **234 tests passed, none skipped**,
-including all 181 existing Phase 1/2/3 tests. Separate live synthetic comparison
-verification through the exact signed-in Codex model and the local HTTP smoke
-check also passed.
+Latest Phase 5 validation (November 7, 2026): **298 tests passed, none skipped**,
+including all 234 existing Phase 1–4 tests. The separate November 7 live synthetic
+RAG check passed through the exact signed-in Codex model: retrieved context, grounded
+answer, canonical citation/page, insufficient-evidence response and isolation checks.
+Local HTTP smoke also passed. The November 6 live comparison check remains recorded
+in the Phase 5 report; automated generation tests use mocks and incur no LLM usage.
 
 Explicit worker verification (requires signed-in Codex and OS execution permission):
 
@@ -360,8 +424,11 @@ evidence worker and synthetic RAG workflow.
   This establishes traceability, not semantic support for every claim. Retrieval
   quality, faithfulness and hallucination measurement remain Phase 6; no accuracy
   improvement or general injection immunity is claimed from synthetic checks.
-- This is a single-user local app. Document status recovery handles basic partial
-  operations; comprehensive corruption/recovery and UI refinement remain Phase 5.
+- This is a single-user local app. Recovery checks run on startup or explicit
+  request and add local disk I/O; external changes after startup require another
+  check/restart. A structurally valid but semantically wrong vector cannot always
+  be detected without re-embedding. Missing canonical data/physical database
+  corruption may require backups. Joblib snapshots must be trusted app-local files.
   Deletion removes application data logically, not forensic traces or backups.
 - No hosted model fee is incurred by Phase 2. Local tools/model downloads use
   disk, CPU, and internet bandwidth. PyMuPDF's existing AGPL/commercial licensing
@@ -381,13 +448,13 @@ evidence worker and synthetic RAG workflow.
 
 ## Git workflow and stop point
 
-Phases 1, 2 and 3 have been published to
+Phases 1–4 have been published to
 [sumanyuu10/domain-specific-rag-chatbot](https://github.com/sumanyuu10/domain-specific-rag-chatbot).
-Phase 4 is completed, tested and reviewed. The user approved its commit and push
-on November 6, 2026. Phase 4 commit message:
+Phase 5 is completed, tested and reviewed. The user approved its commit and push
+on November 7, 2026. Phase 5 commit message:
 
 ```text
-feat: add phase 4 cited research paper comparisons
+feat: add phase 5 library recovery and resilient source workflows
 ```
 
 `.gitignore` excludes `.env` variants, credentials, PDFs/private documents, local
@@ -395,9 +462,8 @@ databases/vectors/models, caches, environments, build output, and raw reports.
 Only `.env.example`, source, tests, and curated documentation are publishable.
 Publication follows the [Git workflow](docs/GIT_WORKFLOW.md); future phase commits
 and pushes require their own approval.
-**Stop after the authorized Phase 4 publication. Phase 5 has not started and needs
-explicit approval.** Its scope is restart/deletion recovery, graceful service/storage
-failures, and source/UI refinement; see [the preparation plan](PROJECT_PROGRESS.md#phase-5-preparation--not-implemented).
+**Stop after the authorized Phase 5 publication. Phase 6 has not started and requires
+explicit approval.** See [the preparation plan](PROJECT_PROGRESS.md#phase-6-preparation--not-implemented) for evaluation scope, proposed files, dependencies and security.
 
 ## Implementation references
 

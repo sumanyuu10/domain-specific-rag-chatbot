@@ -107,7 +107,7 @@ Phase 4 is implemented, tested and reviewed. The user approved commit and push o
 November 6, 2026. Recheck tests, `reports/PHASE4_REPORT.md`, the exact source/test/doc
 diff, exclusions and fetched remote history before staging only Phase 4 files.
 Use a normal push; stop on failures, conflicts or unexpected remote changes.
-Phase 5 implementation and publication need their own explicit approvals.
+Phase 5 implementation and publication were subsequently approved separately.
 
 ```bash
 HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q
@@ -120,6 +120,26 @@ Approved Phase 4 commit message:
 `feat: add phase 4 cited research paper comparisons`.
 Validated card caches reside inside the ignored SQLite catalog; raw Phase 4
 verification reports remain ignored. Never stage those generated/private files.
+
+## Phase 5 review boundary
+
+Phase 5 is implemented, tested and reviewed. The user approved commit/push on
+November 7, 2026. Recheck the source/test/doc diff, exclusions, full suite, live
+synthetic RAG and fetched remote before staging only the relevant Phase 5 files.
+Use a normal push and stop on test failures, authentication issues, conflicts or
+unexpected remote changes. Phase 6 has not started and requires separate approval.
+
+```bash
+HF_HUB_OFFLINE=1 HF_XET_CACHE="$PWD/data/models/xet" .venv/bin/python -m pytest --run-embedding-integration -q
+.venv/bin/python -m pip check
+git status --short
+git diff --check
+```
+
+Approved Phase 5 commit message:
+`feat: add phase 5 library recovery and resilient source workflows`.
+Local recovery modifies only the ignored library; never stage its PDFs, databases,
+card caches, vector records or raw verification reports.
 
 ## What stays local
 

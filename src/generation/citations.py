@@ -11,6 +11,7 @@ def source_map(context):
 
 
 def validate_context(library, context):
+    library.ensure_available(RetrievalError)
     snapshot = context.snapshot
     if library.catalog.corpus_version() != snapshot.corpus_version:
         raise RetrievalError("The paper library changed. Search again before generating an answer.")

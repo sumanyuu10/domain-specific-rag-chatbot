@@ -23,7 +23,7 @@ class SparseIndex:
 
     def signature(self, chunks):
         return hashlib.sha256(json.dumps({
-            "fingerprint": self.fingerprint, "ids": [chunk.chunk_id for chunk in chunks],
+            "fingerprint": self.fingerprint, "chunks": [(chunk.chunk_id, chunk.text) for chunk in chunks],
         }, sort_keys=True).encode()).hexdigest()
 
     def rebuild(self, chunks):
@@ -48,6 +48,15 @@ class SparseIndex:
             )
             if not valid:
                 raise ValueError("Stale BM25 snapshot")
+            if chunks:
+                index = payload["index"]
+                terms = [tokenize(chunk.text) for chunk in chunks]
+                expected = BM25Okapi(terms)
+                if (index.doc_freqs != expected.doc_freqs or index.doc_len != expected.doc_len
+                        or index.corpus_size != expected.corpus_size or index.idf != expected.idf
+                        or index.avgdl != expected.avgdl or index.k1 != expected.k1
+                        or index.b != expected.b or index.epsilon != expected.epsilon):
+                    raise ValueError("Inconsistent BM25 statistics")
             self.chunk_ids, self.index = payload["ids"], payload["index"]
             return True
         except Exception:

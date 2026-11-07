@@ -7,6 +7,7 @@ import asyncio
 from dataclasses import dataclass
 from importlib.metadata import version
 import json
+import logging
 import os
 from pathlib import Path
 import tempfile
@@ -16,6 +17,9 @@ from langchain_core.runnables import RunnableLambda
 from openai_codex import ApprovalMode, AsyncCodex, CodexConfig, Sandbox
 
 from src.config import Settings
+from src.generation.runtime import MESSAGES, classify_exception, classify_info, collect_turn
+
+LOGGER = logging.getLogger(__name__)
 
 
 class CodexIntegrationError(RuntimeError):
@@ -91,6 +95,19 @@ class CodexGateway:
         self._client_factory = client_factory
 
     async def _session(self, operation: Callable):
+        try:
+            return await self._isolated_session(operation)
+        except CodexIntegrationError as error:
+            LOGGER.warning("codex_request_failed code=%s", error.code)
+            raise
+        except Exception as error:
+            code = classify_exception(error) or "sdk_failure"
+            LOGGER.warning("codex_request_failed code=%s", code)
+            raise CodexIntegrationError(code, MESSAGES.get(code,
+                "The Codex runtime or temporary storage failed. Check sign-in, runtime availability, disk space and permissions; no fallback was attempted."
+            )) from error
+
+    async def _isolated_session(self, operation: Callable):
         self.settings.runtime_dir.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=self.settings.runtime_dir, prefix="request-") as name:
             client = None
@@ -108,6 +125,9 @@ class CodexGateway:
                     "timeout", "Codex timed out. The request was cancelled; no fallback was attempted."
                 ) from error
             except Exception as error:
+                code = classify_exception(error)
+                if code:
+                    raise CodexIntegrationError(code, MESSAGES[code]) from error
                 # Raw SDK errors may include environment, account, or stderr data.
                 # Preserve the cause for debugging, but expose only a fixed message.
                 raise CodexIntegrationError(
@@ -182,7 +202,7 @@ class CodexGateway:
                 effort="low", approval_mode=ApprovalMode.deny_all,
             )
             try:
-                result = await handle.run()
+                result = await collect_turn(handle)
             except asyncio.CancelledError:
                 try:
                     await asyncio.wait_for(handle.interrupt(), timeout=2)
@@ -190,6 +210,9 @@ class CodexGateway:
                     pass  # Closing the client below also terminates the local runtime.
                 raise
             if _value(result.status) != "completed":
+                code = classify_info(getattr(result, "error_info", None))
+                if code:
+                    raise CodexIntegrationError(code, MESSAGES[code])
                 raise CodexIntegrationError("incomplete_turn", "Codex did not complete the generation turn.")
             types = tuple(
                 _value(getattr(getattr(item, "root", item), "type", "unknown"))

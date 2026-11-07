@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 
-from src.schemas import ChunkRecord, ConfigurationMismatch, PageRecord, PaperRecord
+from src.schemas import ChunkRecord, ConfigurationMismatch, IngestionError, PageRecord, PaperRecord
 
 
 class Catalog:
@@ -32,6 +32,10 @@ class Catalog:
                     chunk_ordinal INTEGER NOT NULL, text TEXT NOT NULL, pipeline_version TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS chunks_paper ON chunks(paper_id);
+                CREATE TABLE IF NOT EXISTS paper_issues(
+                    paper_id TEXT PRIMARY KEY REFERENCES papers(paper_id) ON DELETE CASCADE,
+                    reason TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS comparison_cards(
                     cache_key TEXT PRIMARY KEY,
                     paper_id TEXT NOT NULL REFERENCES papers(paper_id) ON DELETE CASCADE,
@@ -113,14 +117,15 @@ class Catalog:
             rows = db.execute("SELECT * FROM pages WHERE paper_id=? ORDER BY page_number", (paper_id,))
             return [PageRecord(**{**dict(row), "warnings": json.loads(row["warnings"])}) for row in rows]
 
-    def chunks(self, paper_id: str | None = None, *, include_processing=False) -> list[ChunkRecord]:
+    def chunks(self, paper_id: str | None = None, *, include_processing=False, include_unavailable=False) -> list[ChunkRecord]:
         with self.connection() as db:
             query = "SELECT c.* FROM chunks c JOIN papers p ON c.paper_id=p.paper_id WHERE "
-            query += "p.status IN ('ready','processing')" if include_processing else "p.status='ready'"
-            args = ()
+            statuses = ["ready"] + (["processing"] if include_processing else []) + (["unavailable"] if include_unavailable else [])
+            query += "p.status IN (" + ",".join("?" for _ in statuses) + ")"
+            args = tuple(statuses)
             if paper_id:
                 query += " AND c.paper_id=?"
-                args = (paper_id,)
+                args += (paper_id,)
             query += " ORDER BY c.paper_id,c.page_number,c.chunk_ordinal"
             return [ChunkRecord(**dict(row)) for row in db.execute(query, args)]
 
@@ -140,7 +145,8 @@ class Catalog:
                 "SELECT paper_id,uploaded_at,chunk_count FROM papers WHERE status='ready' ORDER BY paper_id"
             ).fetchall()
             fingerprint = db.execute("SELECT value FROM metadata WHERE key='fingerprint'").fetchone()[0]
-        return hashlib.sha256(json.dumps([fingerprint, [tuple(row) for row in rows]]).encode()).hexdigest()
+            revision = db.execute("SELECT value FROM metadata WHERE key='recovery_revision'").fetchone()
+        return hashlib.sha256(json.dumps([fingerprint, revision[0] if revision else "0", [tuple(row) for row in rows]]).encode()).hexdigest()
 
     def paper_version(self, paper_id: str) -> str | None:
         import hashlib
@@ -174,3 +180,47 @@ class Catalog:
     def discard_comparison_card(self, cache_key):
         with self.connection() as db:
             db.execute("DELETE FROM comparison_cards WHERE cache_key=?", (cache_key,))
+
+    def check_integrity(self):
+        with self.connection() as db:
+            if db.execute("PRAGMA quick_check").fetchone()[0] != "ok" or db.execute("PRAGMA foreign_key_check").fetchone():
+                raise IngestionError("The local catalog failed its integrity check. Restore a backup; saved files were preserved.")
+
+    def identities(self):
+        with self.connection() as db:
+            return [tuple(row) for row in db.execute("SELECT paper_id,status FROM papers ORDER BY paper_id")]
+
+    def bump_revision(self):
+        # Opaque change marker: derived-index repair must invalidate
+        # previews even though canonical paper/chunk IDs remain the same.
+        from uuid import uuid4
+        with self.connection() as db:
+            db.execute("INSERT OR REPLACE INTO metadata VALUES('recovery_revision',?)", (uuid4().hex,))
+
+    def paper_issue(self, paper_id):
+        with self.connection() as db:
+            row = db.execute("SELECT reason FROM paper_issues WHERE paper_id=?", (paper_id,)).fetchone()
+            return row[0] if row else None
+
+    def set_paper_issue(self, paper_id, reason):
+        with self.connection() as db:
+            if reason:
+                db.execute("UPDATE papers SET status='unavailable' WHERE paper_id=?", (paper_id,))
+                db.execute("INSERT OR REPLACE INTO paper_issues VALUES(?,?)", (paper_id, reason))
+                db.execute("DELETE FROM comparison_cards WHERE paper_id=?", (paper_id,))
+            else:
+                db.execute("UPDATE papers SET status='ready' WHERE paper_id=?", (paper_id,))
+                db.execute("DELETE FROM paper_issues WHERE paper_id=?", (paper_id,))
+
+    def issues(self):
+        with self.connection() as db:
+            # Filename is only a display label; damaged JSON/model fields need
+            # not parse for a user to remove or restore an unavailable paper.
+            return [dict(row) for row in db.execute(
+                "SELECT p.paper_id,p.filename,i.reason FROM papers p JOIN paper_issues i USING(paper_id) ORDER BY p.paper_id"
+            )]
+
+    def chunk_ids(self, paper_id):
+        """Deletion must work even for unavailable or malformed chunk records."""
+        with self.connection() as db:
+            return [row[0] for row in db.execute("SELECT chunk_id FROM chunks WHERE paper_id=?", (paper_id,))]
